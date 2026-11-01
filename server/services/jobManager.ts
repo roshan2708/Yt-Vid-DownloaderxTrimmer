@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
-import { Job, JobStatus } from '../types';
+import { Job } from '../types';
 
 export const TEMP_DIR = path.resolve(process.cwd(), 'server', 'temp');
 
@@ -24,20 +24,24 @@ class JobManager {
   public createJob(params: {
     url: string;
     title: string;
-    startTime: string;
-    endTime: string;
-    startSeconds: number;
-    endSeconds: number;
+    startTime?: string;
+    endTime?: string;
+    startSeconds?: number;
+    endSeconds?: number;
+    isFullVideo: boolean;
+    selectedQuality?: number;
   }): Job {
     const id = uuidv4();
     const job: Job = {
       id,
       url: params.url,
-      title: params.title || 'video_clip',
+      title: params.title || 'video',
       startTime: params.startTime,
       endTime: params.endTime,
       startSeconds: params.startSeconds,
       endSeconds: params.endSeconds,
+      isFullVideo: params.isFullVideo,
+      selectedQuality: params.selectedQuality,
       status: 'queued',
       step: 'Queued for processing...',
       progress: 0,

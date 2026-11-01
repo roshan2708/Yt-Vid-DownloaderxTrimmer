@@ -1,8 +1,8 @@
 import { spawn } from 'child_process';
 import fs from 'fs';
 import path from 'path';
-import { Job, VideoMetadata } from '../types';
-import { formatSeconds } from '../utils/validator';
+import { Job, VideoMetadata, VideoQuality } from '../types';
+import { formatBytes, formatSeconds, getQualityLabel } from '../utils/validator';
 import { jobManager, TEMP_DIR } from './jobManager';
 
 // Candidate paths for binaries (handles macOS Homebrew, Linux Ubuntu VPS, standard PATH)
@@ -75,13 +75,106 @@ function execProcess(
   });
 }
 
+interface RawYtDlpFormat {
+  format_id?: string;
+  height?: number;
+  width?: number;
+  filesize?: number;
+  filesize_approx?: number;
+  vcodec?: string;
+  acodec?: string;
+  tbr?: number;
+  vbr?: number;
+  abr?: number;
+  ext?: string;
+}
+
+/**
+ * Extract available video qualities from yt-dlp metadata
+ */
+function parseAvailableQualities(formats: RawYtDlpFormat[] = [], duration: number = 0): VideoQuality[] {
+  // Find highest audio filesize to add to video-only formats
+  let bestAudioSize = 0;
+  for (const f of formats) {
+    if (f.vcodec === 'none' && f.acodec !== 'none') {
+      const size = f.filesize || f.filesize_approx;
+      if (size && size > bestAudioSize) {
+        bestAudioSize = size;
+      }
+    }
+  }
+
+  // Group by distinct video heights
+  const heightMap = new Map<number, { formatId?: string; filesize?: number }>();
+
+  for (const f of formats) {
+    // Must contain a video stream and a valid height
+    if (f.vcodec !== 'none' && typeof f.height === 'number' && f.height > 0) {
+      const h = f.height;
+      let calculatedSize = f.filesize || f.filesize_approx;
+
+      // If video-only, add estimated audio stream size
+      if (f.acodec === 'none' && calculatedSize && bestAudioSize > 0) {
+        calculatedSize += bestAudioSize;
+      } else if (!calculatedSize && f.tbr && duration > 0) {
+        calculatedSize = Math.round((f.tbr * 1000 * duration) / 8);
+      }
+
+      const existing = heightMap.get(h);
+      if (!existing || (calculatedSize && (!existing.filesize || calculatedSize > existing.filesize))) {
+        heightMap.set(h, {
+          formatId: f.format_id,
+          filesize: calculatedSize,
+        });
+      }
+    }
+  }
+
+  const qualities: VideoQuality[] = [];
+  for (const [height, info] of heightMap.entries()) {
+    qualities.push({
+      height,
+      label: getQualityLabel(height),
+      filesize: info.filesize,
+      formattedSize: formatBytes(info.filesize),
+      formatId: info.formatId,
+    });
+  }
+
+  // Sort descending by height (e.g. 2160, 1440, 1080, 720, 480...)
+  qualities.sort((a, b) => b.height - a.height);
+  return qualities;
+}
+
+/**
+ * Calculates default quality according to rule:
+ * "Default to 720p if available; otherwise select the highest available quality up to 720p."
+ */
+function pickDefaultQuality(qualities: VideoQuality[]): number | undefined {
+  if (qualities.length === 0) return undefined;
+
+  // 1. If 720p is available, pick 720
+  const has720 = qualities.find((q) => q.height === 720);
+  if (has720) return 720;
+
+  // 2. Highest available quality up to 720
+  const upTo720 = qualities.filter((q) => q.height <= 720);
+  if (upTo720.length > 0) {
+    // qualities are sorted descending, so first item is highest <= 720
+    return upTo720[0].height;
+  }
+
+  // 3. Otherwise pick lowest of what's available (> 720) or first
+  return qualities[qualities.length - 1].height;
+}
+
 /**
  * Fetches video metadata via yt-dlp, with fallback to ffprobe
  */
 export async function fetchVideoMetadata(url: string): Promise<VideoMetadata> {
   // Strategy 1: yt-dlp
   try {
-    const { stdout, stderr, code } = await execProcess(
+    const { stdout, code } = await execProcess(
       YT_DLP_BIN,
       ['--dump-single-json', '--no-warnings', '--no-playlist', '--ignore-errors', url],
       { timeoutMs: 30000 }
@@ -95,7 +188,7 @@ export async function fetchVideoMetadata(url: string): Promise<VideoMetadata> {
         data.thumbnail || (Array.isArray(data.thumbnails) && data.thumbnails.length > 0 ? data.thumbnails[0].url : undefined);
       const uploader = data.uploader || data.channel || data.extractor || '';
 
-      // If duration is 0, try ffprobe to get duration for direct videos
+      // If duration is 0, query ffprobe for duration for direct links
       if (duration === 0) {
         try {
           const probe = await execProcess(
@@ -110,9 +203,61 @@ export async function fetchVideoMetadata(url: string): Promise<VideoMetadata> {
             }
           }
         } catch {
-          // ignore probe error
+          // ignore
         }
       }
+
+      // Parse qualities from yt-dlp format list
+      let qualities = parseAvailableQualities(data.formats || [], duration);
+
+      // If no video formats with height discovered, probe direct file with ffprobe
+      if (qualities.length === 0) {
+        try {
+          const probe = await execProcess(
+            FFPROBE_BIN,
+            [
+              '-v',
+              'error',
+              '-select_streams',
+              'v:0',
+              '-show_entries',
+              'stream=height,width:format=size',
+              '-of',
+              'json',
+              url,
+            ],
+            { timeoutMs: 10000 }
+          );
+          if (probe.code === 0 && probe.stdout.trim()) {
+            const probeData = JSON.parse(probe.stdout);
+            const height = probeData.streams?.[0]?.height;
+            const sizeStr = probeData.format?.size;
+            const fileSize = sizeStr ? parseInt(sizeStr, 10) : undefined;
+            if (typeof height === 'number' && height > 0) {
+              qualities.push({
+                height,
+                label: getQualityLabel(height),
+                filesize: fileSize,
+                formattedSize: formatBytes(fileSize),
+              });
+            }
+          }
+        } catch {
+          // ignore
+        }
+      }
+
+      // If still empty (e.g. standard audio/video direct stream), provide standard default
+      if (qualities.length === 0) {
+        qualities = [
+          {
+            height: 720,
+            label: '720p HD',
+          },
+        ];
+      }
+
+      const defaultQuality = pickDefaultQuality(qualities);
 
       return {
         valid: true,
@@ -123,6 +268,8 @@ export async function fetchVideoMetadata(url: string): Promise<VideoMetadata> {
         thumbnail,
         uploader,
         platform: data.extractor_key || 'video',
+        qualities,
+        defaultQuality,
       };
     }
   } catch (err) {
@@ -136,8 +283,10 @@ export async function fetchVideoMetadata(url: string): Promise<VideoMetadata> {
       [
         '-v',
         'error',
+        '-select_streams',
+        'v:0',
         '-show_entries',
-        'format=duration,format_name,size:stream=codec_type,codec_name',
+        'format=duration,format_name,size:stream=height,width,codec_name',
         '-of',
         'json',
         url,
@@ -148,17 +297,28 @@ export async function fetchVideoMetadata(url: string): Promise<VideoMetadata> {
     if (code === 0 && stdout.trim()) {
       const data = JSON.parse(stdout);
       const durationStr = data.format?.duration;
-      const duration = durationStr ? parseFloat(durationStr) : 0;
+      const duration = durationStr ? Math.round(parseFloat(durationStr)) : 0;
+      const height = data.streams?.[0]?.height || 720;
+      const sizeStr = data.format?.size;
+      const fileSize = sizeStr ? parseInt(sizeStr, 10) : undefined;
 
-      // Extract filename from URL
       let title = 'Direct Video';
       try {
         const u = new URL(url);
         const base = path.basename(u.pathname);
         if (base) title = base;
       } catch {
-        // use default
+        // default
       }
+
+      const qualities: VideoQuality[] = [
+        {
+          height,
+          label: getQualityLabel(height),
+          filesize: fileSize,
+          formattedSize: formatBytes(fileSize),
+        },
+      ];
 
       return {
         valid: true,
@@ -168,6 +328,8 @@ export async function fetchVideoMetadata(url: string): Promise<VideoMetadata> {
         formattedDuration: formatSeconds(duration),
         uploader: 'Direct Link',
         platform: 'direct',
+        qualities,
+        defaultQuality: height,
       };
     }
   } catch (err) {
@@ -182,11 +344,11 @@ export async function fetchVideoMetadata(url: string): Promise<VideoMetadata> {
  */
 export function sanitizeFilename(name: string): string {
   const sanitized = name.replace(/[^a-zA-Z0-9_\-]/g, '_').replace(/_+/g, '_').substring(0, 50);
-  return sanitized || 'video_clip';
+  return sanitized || 'video';
 }
 
 /**
- * Trims and downloads video clip asynchronously
+ * Trims and downloads video clip or full video asynchronously
  */
 export async function processVideoJob(jobId: string): Promise<void> {
   const job = jobManager.getJob(jobId);
@@ -194,50 +356,55 @@ export async function processVideoJob(jobId: string): Promise<void> {
 
   jobManager.updateJob(jobId, {
     status: 'processing',
-    step: 'Processing video...',
+    step: job.isFullVideo ? 'Processing video...' : 'Processing video clip...',
     progress: 10,
   });
 
   const baseFileName = sanitizeFilename(job.title);
-  const finalFileName = `${baseFileName}_${job.id.substring(0, 8)}.mp4`;
-  const outputPath = path.join(TEMP_DIR, `clip_${job.id}.mp4`);
+  const suffix = job.isFullVideo ? 'full' : 'clip';
+  const finalFileName = `${baseFileName}_${suffix}_${job.id.substring(0, 8)}.mp4`;
+  const outputPath = path.join(TEMP_DIR, `video_${job.id}.mp4`);
 
   try {
-    // Strategy 1: yt-dlp with --download-sections and keyframe cut
+    // Construct quality selector
+    const q = job.selectedQuality;
+    const formatSelector = q
+      ? `bestvideo[height<=${q}][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=${q}]+bestaudio/best[height<=${q}]/best`
+      : 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio/best[ext=mp4]/best';
+
     jobManager.updateJob(jobId, {
-      step: 'Extracting video segment with FFmpeg...',
-      progress: 30,
+      step: job.isFullVideo ? 'Downloading and merging video streams...' : 'Extracting video segment with FFmpeg...',
+      progress: 25,
     });
 
-    const timeSection = `*${job.startTime}-${job.endTime}`;
-    const ytDlpArgs = [
-      '--download-sections',
-      timeSection,
-      '--force-keyframes-at-cuts',
-      '-f',
-      'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
-      '--merge-output-format',
-      'mp4',
-      '--no-playlist',
-      '-o',
-      outputPath,
-      job.url,
-    ];
+    const ytDlpArgs: string[] = ['-f', formatSelector, '--merge-output-format', 'mp4', '--no-playlist'];
+
+    if (!job.isFullVideo && job.startTime && job.endTime) {
+      const timeSection = `*${job.startTime}-${job.endTime}`;
+      ytDlpArgs.push('--download-sections', timeSection, '--force-keyframes-at-cuts');
+    }
+
+    ytDlpArgs.push('-o', outputPath, job.url);
 
     let success = false;
     try {
       const res = await execProcess(YT_DLP_BIN, ytDlpArgs, {
-        timeoutMs: 180000, // 3 minutes timeout for trim
+        timeoutMs: 300000, // 5 minutes timeout for download and processing
         onProgress: (text) => {
           if (text.includes('[download]')) {
             const match = text.match(/(\d+(\.\d+)?)%/);
             if (match) {
               const p = parseFloat(match[1]);
               jobManager.updateJob(jobId, {
-                progress: Math.min(85, Math.floor(30 + p * 0.5)),
-                step: `Downloading clip segment (${Math.floor(p)}%)...`,
+                progress: Math.min(85, Math.floor(25 + p * 0.6)),
+                step: `Downloading stream (${Math.floor(p)}%)...`,
               });
             }
+          } else if (text.includes('[Merger]') || text.includes('ffmpeg')) {
+            jobManager.updateJob(jobId, {
+              progress: 90,
+              step: 'Merging audio and video with FFmpeg...',
+            });
           }
         },
       });
@@ -246,22 +413,23 @@ export async function processVideoJob(jobId: string): Promise<void> {
         success = true;
       }
     } catch (ytErr) {
-      console.warn(`yt-dlp section download failed for job ${jobId}, falling back to direct ffmpeg:`, ytErr);
+      console.warn(`yt-dlp processing failed for job ${jobId}, falling back to direct ffmpeg:`, ytErr);
     }
 
-    // Strategy 2: Direct FFmpeg cut (especially for direct video links or when yt-dlp section fails)
+    // Strategy 2: Direct FFmpeg cut/stream fallback
     if (!success) {
       jobManager.updateJob(jobId, {
-        step: 'Trimming via FFmpeg direct stream...',
+        step: 'Processing stream directly with FFmpeg...',
         progress: 50,
       });
 
-      const ffmpegArgs = [
-        '-y',
-        '-ss',
-        job.startSeconds.toString(),
-        '-to',
-        job.endSeconds.toString(),
+      const ffmpegArgs: string[] = ['-y'];
+
+      if (!job.isFullVideo && typeof job.startSeconds === 'number' && typeof job.endSeconds === 'number') {
+        ffmpegArgs.push('-ss', job.startSeconds.toString(), '-to', job.endSeconds.toString());
+      }
+
+      ffmpegArgs.push(
         '-i',
         job.url,
         '-c:v',
@@ -276,11 +444,11 @@ export async function processVideoJob(jobId: string): Promise<void> {
         '128k',
         '-movflags',
         '+faststart',
-        outputPath,
-      ];
+        outputPath
+      );
 
       const res = await execProcess(FFMPEG_BIN, ffmpegArgs, {
-        timeoutMs: 180000,
+        timeoutMs: 300000,
       });
 
       if (res.code === 0 && fs.existsSync(outputPath) && fs.statSync(outputPath).size > 0) {
@@ -294,12 +462,12 @@ export async function processVideoJob(jobId: string): Promise<void> {
 
     // Verify final file
     if (!fs.existsSync(outputPath)) {
-      throw new Error('Generated clip file could not be located on disk.');
+      throw new Error('Generated video file could not be located on disk.');
     }
 
     const stat = fs.statSync(outputPath);
     if (stat.size === 0) {
-      throw new Error('Generated clip file is empty.');
+      throw new Error('Generated video file is empty.');
     }
 
     jobManager.updateJob(jobId, {

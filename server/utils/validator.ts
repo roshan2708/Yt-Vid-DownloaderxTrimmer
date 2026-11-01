@@ -132,6 +132,7 @@ export function parseTimestamp(ts: string): number | null {
   if (!ts || typeof ts !== 'string') return null;
 
   const trimmed = ts.trim();
+  if (!trimmed) return null;
 
   // Plain seconds (e.g. "45" or "120.5")
   if (/^\d+(\.\d+)?$/.test(trimmed)) {
@@ -173,67 +174,133 @@ export function formatSeconds(totalSeconds: number): string {
   return `${pad(hours)}:${pad(minutes)}:${pad(remainingSeconds)}`;
 }
 
-export interface TimeRangeValidation {
-  isValid: boolean;
-  error?: string;
-  startSeconds: number;
-  endSeconds: number;
-  formattedStart: string;
-  formattedEnd: string;
+/**
+ * Format bytes to readable size
+ */
+export function formatBytes(bytes?: number): string | undefined {
+  if (!bytes || isNaN(bytes) || bytes <= 0) return undefined;
+  const mb = bytes / (1024 * 1024);
+  if (mb >= 1000) {
+    return `~${(mb / 1024).toFixed(1)} GB`;
+  }
+  if (mb >= 1) {
+    return `~${mb.toFixed(1)} MB`;
+  }
+  return `~${Math.round(bytes / 1024)} KB`;
 }
 
 /**
- * Validates start and end time range
+ * Clean standard label for video resolutions
+ */
+export function getQualityLabel(height: number): string {
+  switch (height) {
+    case 2160:
+      return '2160p 4K';
+    case 1440:
+      return '1440p 2K';
+    case 1080:
+      return '1080p Full HD';
+    case 720:
+      return '720p HD';
+    case 480:
+      return '480p';
+    case 360:
+      return '360p';
+    case 240:
+      return '240p';
+    case 144:
+      return '144p';
+    default:
+      return `${height}p`;
+  }
+}
+
+export interface TimeRangeValidation {
+  isValid: boolean;
+  isFullVideo: boolean;
+  error?: string;
+  startSeconds?: number;
+  endSeconds?: number;
+  formattedStart?: string;
+  formattedEnd?: string;
+}
+
+/**
+ * Validates start and end time range with full video support:
+ * - If both are empty: full video download
+ * - If both are provided: clip download
+ * - If only one is provided: error asking to enter both
  */
 export function validateTimeRange(
-  startTimeStr: string,
-  endTimeStr: string,
+  startTimeStr?: string,
+  endTimeStr?: string,
   videoDuration?: number
 ): TimeRangeValidation {
-  const startSeconds = parseTimestamp(startTimeStr);
-  const endSeconds = parseTimestamp(endTimeStr);
+  const hasStart = typeof startTimeStr === 'string' && startTimeStr.trim().length > 0;
+  const hasEnd = typeof endTimeStr === 'string' && endTimeStr.trim().length > 0;
+
+  // Case 1: Both empty -> Full Video Download
+  if (!hasStart && !hasEnd) {
+    return {
+      isValid: true,
+      isFullVideo: true,
+      startSeconds: 0,
+      endSeconds: videoDuration && videoDuration > 0 ? videoDuration : undefined,
+      formattedStart: undefined,
+      formattedEnd: undefined,
+    };
+  }
+
+  // Case 2: Only one timestamp provided -> Validation Error
+  if (hasStart && !hasEnd) {
+    return {
+      isValid: false,
+      isFullVideo: false,
+      error: 'Please enter both start and end timestamps, or leave both empty to download the full video.',
+    };
+  }
+
+  if (!hasStart && hasEnd) {
+    return {
+      isValid: false,
+      isFullVideo: false,
+      error: 'Please enter both start and end timestamps, or leave both empty to download the full video.',
+    };
+  }
+
+  // Case 3: Both timestamps provided -> Validate Segment
+  const startSeconds = parseTimestamp(startTimeStr!);
+  const endSeconds = parseTimestamp(endTimeStr!);
 
   if (startSeconds === null) {
     return {
       isValid: false,
+      isFullVideo: false,
       error: 'Invalid start time format. Use HH:MM:SS (e.g., 00:00:00).',
-      startSeconds: 0,
-      endSeconds: 0,
-      formattedStart: '00:00:00',
-      formattedEnd: '00:00:00',
     };
   }
 
   if (endSeconds === null) {
     return {
       isValid: false,
+      isFullVideo: false,
       error: 'Invalid end time format. Use HH:MM:SS (e.g., 00:01:30).',
-      startSeconds,
-      endSeconds: 0,
-      formattedStart: formatSeconds(startSeconds),
-      formattedEnd: '00:00:00',
     };
   }
 
   if (startSeconds < 0) {
     return {
       isValid: false,
+      isFullVideo: false,
       error: 'Start time cannot be negative.',
-      startSeconds,
-      endSeconds,
-      formattedStart: formatSeconds(startSeconds),
-      formattedEnd: formatSeconds(endSeconds),
     };
   }
 
   if (endSeconds <= startSeconds) {
     return {
       isValid: false,
-      error: 'End time must be greater than start time.',
-      startSeconds,
-      endSeconds,
-      formattedStart: formatSeconds(startSeconds),
-      formattedEnd: formatSeconds(endSeconds),
+      isFullVideo: false,
+      error: 'Start time must always be less than end time.',
     };
   }
 
@@ -241,24 +308,18 @@ export function validateTimeRange(
   if (duration < 1) {
     return {
       isValid: false,
+      isFullVideo: false,
       error: 'The selected clip must be at least 1 second long.',
-      startSeconds,
-      endSeconds,
-      formattedStart: formatSeconds(startSeconds),
-      formattedEnd: formatSeconds(endSeconds),
     };
   }
 
-  // Prevent excessive single clips on public servers (e.g., max 30 minutes)
-  const MAX_CLIP_SECONDS = 30 * 60; // 30 minutes
+  // Maximum clip limit (e.g., 30 minutes for single clip)
+  const MAX_CLIP_SECONDS = 30 * 60;
   if (duration > MAX_CLIP_SECONDS) {
     return {
       isValid: false,
+      isFullVideo: false,
       error: `Clip duration exceeds maximum allowed limit (${MAX_CLIP_SECONDS / 60} minutes).`,
-      startSeconds,
-      endSeconds,
-      formattedStart: formatSeconds(startSeconds),
-      formattedEnd: formatSeconds(endSeconds),
     };
   }
 
@@ -267,19 +328,17 @@ export function validateTimeRange(
     if (endSeconds > videoDuration + 1) {
       return {
         isValid: false,
-        error: `End time (${formatSeconds(endSeconds)}) exceeds total video duration (${formatSeconds(
+        isFullVideo: false,
+        error: `End time (${formatSeconds(endSeconds)}) must not exceed the video duration (${formatSeconds(
           videoDuration
         )}).`,
-        startSeconds,
-        endSeconds,
-        formattedStart: formatSeconds(startSeconds),
-        formattedEnd: formatSeconds(endSeconds),
       };
     }
   }
 
   return {
     isValid: true,
+    isFullVideo: false,
     startSeconds,
     endSeconds,
     formattedStart: formatSeconds(startSeconds),

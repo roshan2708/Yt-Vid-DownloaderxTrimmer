@@ -3,7 +3,6 @@ import dotenv from 'dotenv';
 import express, { Request, Response } from 'express';
 import rateLimit from 'express-rate-limit';
 import fs from 'fs';
-import path from 'path';
 import { jobManager } from './services/jobManager';
 import { fetchVideoMetadata, processVideoJob } from './services/videoService';
 import { validateTimeRange, validateVideoUrl } from './utils/validator';
@@ -49,7 +48,7 @@ app.get('/health', (_req: Request, res: Response) => {
 
 /**
  * POST /api/validate
- * Validates the video URL and returns metadata
+ * Validates the video URL and returns metadata, available qualities, and default selection
  */
 app.post('/api/validate', async (req: Request, res: Response): Promise<void> => {
   try {
@@ -71,45 +70,56 @@ app.post('/api/validate', async (req: Request, res: Response): Promise<void> => 
 
 /**
  * POST /api/process
- * Validates inputs, creates job, starts background video trimming
+ * Validates inputs, quality selection, timestamps (or full video), creates job, starts trimming/downloading
  */
 app.post('/api/process', processLimiter, async (req: Request, res: Response): Promise<void> => {
   try {
-    const { url, startTime = '00:00:00', endTime } = req.body;
+    const { url, quality, startTime, endTime } = req.body;
 
-    // Validate URL
+    // 1. Validate URL
     const urlCheck = validateVideoUrl(url);
     if (!urlCheck.isValid) {
       res.status(400).json({ error: urlCheck.error });
       return;
     }
 
-    if (!endTime) {
-      res.status(400).json({ error: 'End time is required.' });
-      return;
-    }
-
-    // Step 1: Validate URL & metadata to ensure bounds are respected
+    // 2. Fetch metadata to verify video existence, duration, and qualities
     let videoDuration: number | undefined;
-    let videoTitle = 'Clip';
+    let videoTitle = 'Video';
+    let availableQualities: number[] = [];
+    let defaultQuality: number | undefined;
 
     try {
       const meta = await fetchVideoMetadata(urlCheck.normalizedUrl || url);
       videoDuration = meta.duration;
       videoTitle = meta.title;
+      availableQualities = meta.qualities.map((q) => q.height);
+      defaultQuality = meta.defaultQuality;
     } catch {
-      // If metadata fetch fails or is slow, proceed with basic bounds if direct URL
       console.warn('Metadata fetch warning prior to processing');
     }
 
-    // Step 2: Validate Time Range
+    // 3. Validate Quality Selection
+    let selectedQuality: number | undefined;
+    if (quality !== undefined && quality !== null && quality !== '') {
+      const parsedQuality = typeof quality === 'number' ? quality : parseInt(quality, 10);
+      if (!isNaN(parsedQuality) && parsedQuality > 0) {
+        selectedQuality = parsedQuality;
+      }
+    }
+    if (!selectedQuality) {
+      selectedQuality = defaultQuality || 720;
+    }
+
+    // 4. Validate Time Range
+    // If both empty -> full video. If both provided -> clip. If only one -> error.
     const timeCheck = validateTimeRange(startTime, endTime, videoDuration);
     if (!timeCheck.isValid) {
       res.status(400).json({ error: timeCheck.error });
       return;
     }
 
-    // Step 3: Create Job
+    // 5. Create Job
     const job = jobManager.createJob({
       url: urlCheck.normalizedUrl || url,
       title: videoTitle,
@@ -117,9 +127,11 @@ app.post('/api/process', processLimiter, async (req: Request, res: Response): Pr
       endTime: timeCheck.formattedEnd,
       startSeconds: timeCheck.startSeconds,
       endSeconds: timeCheck.endSeconds,
+      isFullVideo: timeCheck.isFullVideo,
+      selectedQuality,
     });
 
-    // Start video processing in background
+    // 6. Start processing in background
     processVideoJob(job.id).catch((err) => {
       console.error(`Unhandled error in processVideoJob ${job.id}:`, err);
     });
@@ -128,6 +140,8 @@ app.post('/api/process', processLimiter, async (req: Request, res: Response): Pr
       jobId: job.id,
       status: job.status,
       step: 'Validating video URL.',
+      isFullVideo: job.isFullVideo,
+      selectedQuality: job.selectedQuality,
     });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Failed to initiate video processing.';
@@ -156,6 +170,8 @@ app.get('/api/status/:jobId', (req: Request, res: Response): void => {
     error: job.error || null,
     fileName: job.fileName,
     fileSize: job.fileSize,
+    isFullVideo: job.isFullVideo,
+    selectedQuality: job.selectedQuality,
   });
 });
 
@@ -179,7 +195,7 @@ app.get('/api/download/:jobId', (req: Request, res: Response): void => {
     return;
   }
 
-  const downloadFilename = job.fileName || `clip_${job.id.substring(0, 8)}.mp4`;
+  const downloadFilename = job.fileName || `video_${job.id.substring(0, 8)}.mp4`;
 
   res.setHeader('Content-Type', 'video/mp4');
   res.setHeader('Content-Disposition', `attachment; filename="${downloadFilename}"`);

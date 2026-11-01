@@ -2,6 +2,14 @@
 
 import { useEffect, useRef, useState } from 'react';
 
+interface VideoQuality {
+  height: number;
+  label: string;
+  filesize?: number;
+  formattedSize?: string;
+  formatId?: string;
+}
+
 interface VideoMetadata {
   valid: boolean;
   url: string;
@@ -11,6 +19,8 @@ interface VideoMetadata {
   thumbnail?: string;
   uploader?: string;
   platform?: string;
+  qualities: VideoQuality[];
+  defaultQuality?: number;
   error?: string;
 }
 
@@ -22,17 +32,20 @@ interface JobStatusResponse {
   error: string | null;
   fileName?: string;
   fileSize?: number;
+  isFullVideo?: boolean;
+  selectedQuality?: number;
 }
 
 export default function Home() {
   const [url, setUrl] = useState('');
-  const [startTime, setStartTime] = useState('00:00:00');
-  const [endTime, setEndTime] = useState('00:00:30');
-
-  // Metadata preview state
-  const [isValidatingUrl, setIsValidatingUrl] = useState(false);
+  const [isFetchingVideo, setIsFetchingVideo] = useState(false);
   const [metadata, setMetadata] = useState<VideoMetadata | null>(null);
   const [metaError, setMetaError] = useState<string | null>(null);
+
+  // Settings
+  const [selectedQuality, setSelectedQuality] = useState<number | ''>('');
+  const [startTime, setStartTime] = useState('');
+  const [endTime, setEndTime] = useState('');
 
   // Processing state
   const [isProcessing, setIsProcessing] = useState(false);
@@ -54,7 +67,6 @@ export default function Home() {
     };
   }, []);
 
-  // Format file size helper
   const formatFileSize = (bytes?: number) => {
     if (!bytes) return '';
     const mb = bytes / (1024 * 1024);
@@ -62,32 +74,33 @@ export default function Home() {
     return `${(bytes / 1024).toFixed(1)} KB`;
   };
 
-  // URL blur/change handler to auto-fetch video details
-  const handleValidateUrl = async (targetUrl: string) => {
-    const trimmed = targetUrl.trim();
-    if (!trimmed) {
-      setMetadata(null);
-      setMetaError(null);
+  // Step 2 & 3: Fetch video metadata
+  const handleFetchVideo = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+
+    const trimmedUrl = url.trim();
+    if (!trimmedUrl) {
+      setMetaError('Please enter a video URL first.');
       return;
     }
 
-    // Basic client check
     try {
-      new URL(trimmed);
+      new URL(trimmedUrl);
     } catch {
-      setMetaError('Please enter a valid URL (e.g. https://...)');
-      setMetadata(null);
+      setMetaError('Please provide a complete URL starting with https://');
       return;
     }
 
-    setIsValidatingUrl(true);
+    setIsFetchingVideo(true);
     setMetaError(null);
+    setErrorMessage(null);
+    setDownloadReady(false);
 
     try {
       const res = await fetch('/api/validate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: trimmed }),
+        body: JSON.stringify({ url: trimmedUrl }),
       });
 
       const data = await res.json();
@@ -97,36 +110,38 @@ export default function Home() {
       } else {
         setMetadata(data);
         setMetaError(null);
-        // If end time is default and duration is available, adjust end time sensibly
-        if (data.formattedDuration && data.duration > 0) {
-          if (data.duration <= 30) {
-            setEndTime(data.formattedDuration);
-          } else if (endTime === '00:00:30' || endTime === '00:00:00') {
-            setEndTime('00:00:30');
-          }
+
+        // Set default quality selection
+        if (data.defaultQuality) {
+          setSelectedQuality(data.defaultQuality);
+        } else if (data.qualities && data.qualities.length > 0) {
+          setSelectedQuality(data.qualities[0].height);
         }
+
+        // Reset timestamps to empty by default (Full Video download default)
+        setStartTime('');
+        setEndTime('');
       }
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Validation request failed';
+      const msg = err instanceof Error ? err.message : 'Failed to fetch video information.';
       setMetaError(msg);
       setMetadata(null);
     } finally {
-      setIsValidatingUrl(false);
+      setIsFetchingVideo(false);
     }
   };
 
-  // Trigger download file
   const triggerDownload = (jobId: string, customFileName?: string) => {
     const downloadUrl = `/api/download/${jobId}`;
     const anchor = document.createElement('a');
     anchor.href = downloadUrl;
-    anchor.download = customFileName || `clip_${jobId.substring(0, 8)}.mp4`;
+    anchor.download = customFileName || `video_${jobId.substring(0, 8)}.mp4`;
     document.body.appendChild(anchor);
     anchor.click();
     document.body.removeChild(anchor);
   };
 
-  // Start processing & trimming
+  // Step 7: Handle download submission
   const handleStartDownload = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -136,18 +151,15 @@ export default function Home() {
       return;
     }
 
-    // Basic timestamp format validation
-    const timeRegex = /^(\d{1,2}:)?[0-5]?\d:[0-5]\d$/;
-    const isStartTimeValid = timeRegex.test(startTime.trim()) || /^\d+$/.test(startTime.trim());
-    const isEndTimeValid = timeRegex.test(endTime.trim()) || /^\d+$/.test(endTime.trim());
+    const trimmedStart = startTime.trim();
+    const trimmedEnd = endTime.trim();
 
-    if (!isStartTimeValid) {
-      setErrorMessage('Invalid start time format. Use HH:MM:SS (e.g., 00:00:00).');
-      return;
-    }
+    // Timestamp rule: If one provided, both must be provided
+    const hasStart = trimmedStart.length > 0;
+    const hasEnd = trimmedEnd.length > 0;
 
-    if (!isEndTimeValid) {
-      setErrorMessage('Invalid end time format. Use HH:MM:SS (e.g., 00:01:30).');
+    if ((hasStart && !hasEnd) || (!hasStart && hasEnd)) {
+      setErrorMessage('Please enter both start and end timestamps, or leave both empty to download the full video.');
       return;
     }
 
@@ -165,8 +177,9 @@ export default function Home() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           url: trimmedUrl,
-          startTime: startTime.trim(),
-          endTime: endTime.trim(),
+          quality: selectedQuality || undefined,
+          startTime: trimmedStart || undefined,
+          endTime: trimmedEnd || undefined,
         }),
       });
 
@@ -194,9 +207,9 @@ export default function Home() {
 
           const statusData: JobStatusResponse = await statusRes.json();
 
-          if (statusData.status === 'processing') {
+          if (statusData.status === 'processing' || statusData.status === 'queued') {
             setCurrentStep(statusData.step || 'Processing video...');
-            setProgress(statusData.progress || 35);
+            setProgress(statusData.progress || 30);
           } else if (statusData.status === 'completed') {
             if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
             setCurrentStep('Preparing download...');
@@ -217,7 +230,7 @@ export default function Home() {
           } else if (statusData.status === 'failed') {
             if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
             setIsProcessing(false);
-            setErrorMessage(statusData.error || 'Video processing failed. Please check timestamps and try again.');
+            setErrorMessage(statusData.error || 'Video processing failed. Please check inputs and try again.');
           }
         } catch (pollErr: unknown) {
           if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
@@ -249,145 +262,229 @@ export default function Home() {
         <div className="flex items-center gap-2">
           <span className="text-xl font-bold tracking-tight text-black">ClipDown</span>
         </div>
-        <nav className="text-xs text-neutral-500 font-medium">Video Trimmer</nav>
+        <nav className="text-xs text-neutral-500 font-medium">Video Trimmer & Downloader</nav>
       </header>
 
       {/* Main Section */}
       <main className="flex-1 flex flex-col items-center justify-center px-4 py-12 md:py-16">
-        <div className="w-full max-w-xl mx-auto">
+        <div className="w-full max-w-xl mx-auto space-y-6">
           {/* Heading & Subtitle */}
-          <div className="text-center mb-8">
+          <div className="text-center mb-6">
             <h1 className="text-3xl md:text-4xl font-bold tracking-tight text-neutral-900 mb-2">
               Download Any Clip You Want
             </h1>
             <p className="text-sm md:text-base text-neutral-600">
-              Paste a video link, select your preferred time range, and download your clip.
+              Paste a video link, select quality and preferred time range, or download the full video.
             </p>
           </div>
 
-          {/* Form */}
-          <form onSubmit={handleStartDownload} className="space-y-5">
-            {/* 1. Video URL Field */}
-            <div>
-              <label htmlFor="video-url" className="block text-xs font-semibold uppercase tracking-wider text-neutral-700 mb-1.5">
-                Video URL
-              </label>
-              <div className="relative">
-                <input
-                  id="video-url"
-                  type="url"
-                  required
-                  disabled={isProcessing}
-                  value={url}
-                  onChange={(e) => {
-                    setUrl(e.target.value);
-                    if (metaError) setMetaError(null);
-                  }}
-                  onBlur={() => handleValidateUrl(url)}
-                  placeholder="Paste your video URL here…"
-                  className="w-full px-4 py-3 text-sm md:text-base bg-white border border-neutral-300 rounded-lg text-neutral-900 placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-900 focus:border-transparent transition-colors disabled:bg-neutral-50 disabled:text-neutral-500"
-                />
-                {isValidatingUrl && (
-                  <div className="absolute right-3 top-3 text-xs text-neutral-500 flex items-center gap-1.5">
-                    <span className="inline-block w-3.5 h-3.5 border-2 border-neutral-400 border-t-neutral-900 rounded-full animate-spin"></span>
-                    <span>Checking...</span>
-                  </div>
-                )}
-              </div>
-
-              {metaError && (
-                <p className="mt-1.5 text-xs text-red-600">{metaError}</p>
-              )}
-
-              {/* Video Preview Info */}
-              {metadata && (
-                <div className="mt-2.5 p-3 border border-neutral-200 rounded-lg bg-neutral-50 flex items-center gap-3">
-                  {metadata.thumbnail && (
-                    <img
-                      src={metadata.thumbnail}
-                      alt={metadata.title}
-                      className="w-16 h-10 object-cover rounded border border-neutral-200 flex-shrink-0"
-                    />
-                  )}
-                  <div className="min-w-0 flex-1">
-                    <p className="text-xs font-semibold text-neutral-900 truncate">
-                      {metadata.title}
-                    </p>
-                    <p className="text-xs text-neutral-500 mt-0.5">
-                      {metadata.uploader && <span>{metadata.uploader} • </span>}
-                      <span>Duration: {metadata.formattedDuration || 'Unknown'}</span>
-                    </p>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Timestamps Section */}
-            <div className="grid grid-cols-2 gap-4">
-              {/* 2. Start Time */}
-              <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <label htmlFor="start-time" className="block text-xs font-semibold uppercase tracking-wider text-neutral-700">
-                    Start Time
-                  </label>
-                  <span className="text-[10px] text-neutral-400">HH:MM:SS</span>
-                </div>
-                <input
-                  id="start-time"
-                  type="text"
-                  required
-                  disabled={isProcessing}
-                  value={startTime}
-                  onChange={(e) => setStartTime(e.target.value)}
-                  placeholder="00:00:00"
-                  className="w-full px-3.5 py-2.5 text-sm md:text-base font-mono bg-white border border-neutral-300 rounded-lg text-neutral-900 focus:outline-none focus:ring-2 focus:ring-neutral-900 focus:border-transparent transition-colors disabled:bg-neutral-50"
-                />
-              </div>
-
-              {/* 3. End Time */}
-              <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <label htmlFor="end-time" className="block text-xs font-semibold uppercase tracking-wider text-neutral-700">
-                    End Time
-                  </label>
-                  <span className="text-[10px] text-neutral-400">HH:MM:SS</span>
-                </div>
-                <input
-                  id="end-time"
-                  type="text"
-                  required
-                  disabled={isProcessing}
-                  value={endTime}
-                  onChange={(e) => setEndTime(e.target.value)}
-                  placeholder="00:00:30"
-                  className="w-full px-3.5 py-2.5 text-sm md:text-base font-mono bg-white border border-neutral-300 rounded-lg text-neutral-900 focus:outline-none focus:ring-2 focus:ring-neutral-900 focus:border-transparent transition-colors disabled:bg-neutral-50"
-                />
-              </div>
-            </div>
-
-            {/* 4. Download Button */}
-            <div>
+          {/* Section A: Video URL */}
+          <div className="space-y-2">
+            <label htmlFor="video-url" className="block text-xs font-semibold uppercase tracking-wider text-neutral-700">
+              Video URL
+            </label>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <input
+                id="video-url"
+                type="url"
+                required
+                disabled={isProcessing || isFetchingVideo}
+                value={url}
+                onChange={(e) => {
+                  setUrl(e.target.value);
+                  if (metaError) setMetaError(null);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleFetchVideo();
+                  }
+                }}
+                placeholder="Paste your video URL here…"
+                className="flex-1 px-4 py-3 text-sm md:text-base bg-white border border-neutral-300 rounded-lg text-neutral-900 placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-900 focus:border-transparent transition-colors disabled:bg-neutral-50"
+              />
               <button
-                id="download-button"
-                type="submit"
-                disabled={isProcessing}
-                className="w-full py-3.5 px-6 rounded-lg text-sm md:text-base font-semibold text-white bg-black hover:bg-neutral-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-neutral-900 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 cursor-pointer"
+                type="button"
+                id="fetch-video-button"
+                disabled={isFetchingVideo || isProcessing || !url.trim()}
+                onClick={() => handleFetchVideo()}
+                className="px-5 py-3 rounded-lg text-sm font-semibold text-white bg-black hover:bg-neutral-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-neutral-900 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1.5 cursor-pointer flex-shrink-0"
               >
-                {isProcessing ? (
+                {isFetchingVideo ? (
                   <>
-                    <span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
-                    <span>{currentStep || 'Processing video...'}</span>
+                    <span className="inline-block w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+                    <span>Fetching...</span>
                   </>
                 ) : (
-                  <span>Download Clip</span>
+                  <span>Fetch Video</span>
                 )}
               </button>
             </div>
-          </form>
 
-          {/* Processing States & Feedback */}
+            {metaError && <p className="text-xs text-red-600 pt-1">{metaError}</p>}
+          </div>
+
+          {/* Section B: Video Preview (Only displayed after successfully fetching metadata) */}
+          {metadata && (
+            <div className="border border-neutral-200 rounded-lg p-4 bg-neutral-50 space-y-3">
+              <div className="flex items-start gap-3.5">
+                {metadata.thumbnail ? (
+                  <img
+                    src={metadata.thumbnail}
+                    alt={metadata.title}
+                    className="w-24 h-16 object-cover rounded border border-neutral-200 flex-shrink-0 bg-neutral-100"
+                  />
+                ) : (
+                  <div className="w-24 h-16 bg-neutral-200 rounded flex items-center justify-center text-xs text-neutral-500 flex-shrink-0">
+                    Video
+                  </div>
+                )}
+                <div className="min-w-0 flex-1">
+                  <h3 className="text-sm font-semibold text-neutral-900 line-clamp-2">{metadata.title}</h3>
+                  <div className="flex flex-wrap items-center gap-2 mt-1.5 text-xs text-neutral-500">
+                    {metadata.uploader && <span>{metadata.uploader}</span>}
+                    {metadata.uploader && <span>•</span>}
+                    <span>Duration: {metadata.formattedDuration || 'Unknown'}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Available Qualities Tags */}
+              {metadata.qualities && metadata.qualities.length > 0 && (
+                <div className="pt-2 border-t border-neutral-200/80">
+                  <p className="text-[11px] font-medium text-neutral-500 mb-1.5">Available Resolutions:</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {metadata.qualities.map((q) => (
+                      <span
+                        key={q.height}
+                        className={`text-[11px] px-2 py-0.5 rounded border ${
+                          selectedQuality === q.height
+                            ? 'bg-neutral-900 text-white border-neutral-900 font-medium'
+                            : 'bg-white text-neutral-700 border-neutral-300'
+                        }`}
+                      >
+                        {q.label}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Section C: Download Settings (Quality & Timestamps) */}
+          {metadata && (
+            <form onSubmit={handleStartDownload} className="space-y-5">
+              {/* Quality Dropdown */}
+              <div>
+                <label
+                  htmlFor="quality-selector"
+                  className="block text-xs font-semibold uppercase tracking-wider text-neutral-700 mb-1.5"
+                >
+                  Video Quality
+                </label>
+                <select
+                  id="quality-selector"
+                  disabled={isProcessing}
+                  value={selectedQuality}
+                  onChange={(e) => setSelectedQuality(parseInt(e.target.value, 10))}
+                  className="w-full px-3.5 py-2.5 text-sm md:text-base bg-white border border-neutral-300 rounded-lg text-neutral-900 focus:outline-none focus:ring-2 focus:ring-neutral-900 focus:border-transparent transition-colors disabled:bg-neutral-50"
+                >
+                  {metadata.qualities.map((q) => (
+                    <option key={q.height} value={q.height}>
+                      {q.label} {q.formattedSize ? `(${q.formattedSize})` : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Timestamp Inputs */}
+              <div className="space-y-1.5">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label
+                        htmlFor="start-time"
+                        className="block text-xs font-semibold uppercase tracking-wider text-neutral-700"
+                      >
+                        Start Time
+                      </label>
+                      <span className="text-[10px] text-neutral-400">HH:MM:SS</span>
+                    </div>
+                    <input
+                      id="start-time"
+                      type="text"
+                      disabled={isProcessing}
+                      value={startTime}
+                      onChange={(e) => setStartTime(e.target.value)}
+                      placeholder="00:00:00"
+                      className="w-full px-3.5 py-2.5 text-sm md:text-base font-mono bg-white border border-neutral-300 rounded-lg text-neutral-900 focus:outline-none focus:ring-2 focus:ring-neutral-900 focus:border-transparent transition-colors disabled:bg-neutral-50"
+                    />
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label
+                        htmlFor="end-time"
+                        className="block text-xs font-semibold uppercase tracking-wider text-neutral-700"
+                      >
+                        End Time
+                      </label>
+                      <span className="text-[10px] text-neutral-400">HH:MM:SS</span>
+                    </div>
+                    <input
+                      id="end-time"
+                      type="text"
+                      disabled={isProcessing}
+                      value={endTime}
+                      onChange={(e) => setEndTime(e.target.value)}
+                      placeholder={metadata.formattedDuration || '00:00:30'}
+                      className="w-full px-3.5 py-2.5 text-sm md:text-base font-mono bg-white border border-neutral-300 rounded-lg text-neutral-900 focus:outline-none focus:ring-2 focus:ring-neutral-900 focus:border-transparent transition-colors disabled:bg-neutral-50"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between pt-1 text-xs text-neutral-500">
+                  <p>Leave both fields empty to download the entire video.</p>
+                  {(startTime || endTime) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setStartTime('');
+                        setEndTime('');
+                      }}
+                      className="text-[11px] underline text-neutral-700 hover:text-black cursor-pointer"
+                    >
+                      Clear (Full Video)
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Section D: Download Button */}
+              <div>
+                <button
+                  id="download-button"
+                  type="submit"
+                  disabled={isProcessing}
+                  className="w-full py-3.5 px-6 rounded-lg text-sm md:text-base font-semibold text-white bg-black hover:bg-neutral-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-neutral-900 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  {isProcessing ? (
+                    <>
+                      <span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+                      <span>{currentStep || 'Processing video...'}</span>
+                    </>
+                  ) : (
+                    <span>Download Video</span>
+                  )}
+                </button>
+              </div>
+            </form>
+          )}
+
+          {/* Processing States & Progress Bar */}
           {isProcessing && (
-            <div className="mt-6 p-4 border border-neutral-200 rounded-lg bg-neutral-50">
+            <div className="p-4 border border-neutral-200 rounded-lg bg-neutral-50">
               <div className="flex items-center justify-between text-xs font-medium text-neutral-700 mb-2">
                 <span>{currentStep}</span>
                 <span>{progress}%</span>
@@ -399,14 +496,14 @@ export default function Home() {
                 ></div>
               </div>
               <p className="mt-2 text-[11px] text-neutral-500 text-center">
-                Processing video on backend with FFmpeg. This may take a few moments.
+                Processing video streams and generating MP4. Please wait a moment.
               </p>
             </div>
           )}
 
           {/* Download Completed State */}
           {downloadReady && activeJobId && (
-            <div className="mt-6 p-4 border border-neutral-200 rounded-lg bg-neutral-50 space-y-3">
+            <div className="p-4 border border-neutral-200 rounded-lg bg-neutral-50 space-y-3">
               <div className="flex items-center gap-2 text-sm font-semibold text-neutral-900">
                 <span className="w-2 h-2 rounded-full bg-emerald-600"></span>
                 <span>Download completed.</span>
@@ -428,7 +525,7 @@ export default function Home() {
                   onClick={handleReset}
                   className="py-2 px-4 rounded-lg text-xs font-medium border border-neutral-300 bg-white text-neutral-700 hover:bg-neutral-50 transition-colors cursor-pointer"
                 >
-                  Trim Another
+                  Download Another
                 </button>
               </div>
             </div>
@@ -436,7 +533,7 @@ export default function Home() {
 
           {/* Error Message */}
           {errorMessage && (
-            <div className="mt-6 p-4 border border-red-200 rounded-lg bg-red-50 text-red-700 text-xs flex flex-col gap-2">
+            <div className="p-4 border border-red-200 rounded-lg bg-red-50 text-red-700 text-xs flex flex-col gap-2">
               <div className="flex items-start gap-2">
                 <span className="font-bold flex-shrink-0">Error:</span>
                 <span className="flex-1">{errorMessage}</span>
@@ -455,7 +552,7 @@ export default function Home() {
 
       {/* Footer */}
       <footer className="border-t border-neutral-200 py-6 px-6 text-center text-xs text-neutral-500">
-        <p>© 2026 ClipDown. Minimal video trimming utility.</p>
+        <p>© 2026 ClipDown. Minimal video trimming & downloading utility.</p>
       </footer>
     </div>
   );
