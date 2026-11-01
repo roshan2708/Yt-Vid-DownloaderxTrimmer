@@ -1,0 +1,24 @@
+[Unit]
+Description=ClipDown Video Trimming & Processing Backend Service
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/var/www/clipdown
+Environment=NODE_ENV=production
+Environment=PORT=4000
+Environment=PATH=/usr/local/bin:/usr/bin:/bin:/usr/local/games:/usr/games
+ExecStart=/usr/bin/npm run server
+Restart=always
+RestartSec=5
+StandardOutput=syslog
+StandardError=syslog
+SyslogIdentifier=clipdown-backend
+
+# Security Sandbox options
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
