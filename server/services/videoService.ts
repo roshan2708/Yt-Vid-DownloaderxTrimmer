@@ -112,6 +112,185 @@ export function getCookieFilePath(): string | null {
 }
 
 /**
+ * Direct Stream Cache to store signed stream URLs extracted via distributed API fallbacks
+ */
+export interface DirectStreamQuality {
+  videoUrl: string;
+  audioUrl?: string;
+  height: number;
+  label: string;
+  filesize?: number;
+}
+
+export interface DirectStreamInfo {
+  videoId: string;
+  title: string;
+  duration: number;
+  thumbnail?: string;
+  uploader?: string;
+  qualities: VideoQuality[];
+  streams: Map<number, DirectStreamQuality>;
+}
+
+export const directStreamCache = new Map<string, DirectStreamInfo>();
+
+export function extractYouTubeVideoId(url: string): string | null {
+  try {
+    const parsed = new URL(url);
+    if (parsed.hostname.includes('youtube.com')) {
+      if (parsed.pathname === '/watch') return parsed.searchParams.get('v');
+      if (parsed.pathname.startsWith('/shorts/')) return parsed.pathname.split('/shorts/')[1].split('/')[0];
+      if (parsed.pathname.startsWith('/embed/')) return parsed.pathname.split('/embed/')[1].split('/')[0];
+    }
+    if (parsed.hostname.includes('youtu.be')) return parsed.pathname.replace(/^\//, '').split('?')[0];
+  } catch {}
+  return null;
+}
+
+/**
+ * Distributed fallback API resolver for YouTube when datacenter IPs are challenged
+ */
+export async function fetchFromInvidiousOrPiped(videoId: string): Promise<DirectStreamInfo | null> {
+  const endpoints = [
+    { type: 'invidious', url: `https://yt.chocolatemoo53.com/api/v1/videos/${videoId}` },
+    { type: 'piped', url: `https://api.piped.private.coffee/streams/${videoId}` },
+  ];
+
+  for (const ep of endpoints) {
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 7000);
+      const res = await fetch(ep.url, {
+        signal: controller.signal,
+        headers: {
+          'User-Agent':
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        },
+      });
+      clearTimeout(timeout);
+
+      if (!res.ok) continue;
+      const data = await res.json();
+
+      if (ep.type === 'invidious') {
+        const title = data.title || 'YouTube Video';
+        const duration = typeof data.lengthSeconds === 'number' ? data.lengthSeconds : 0;
+        const uploader = data.author || '';
+        let thumbnail = `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
+        if (Array.isArray(data.videoThumbnails) && data.videoThumbnails.length > 0) {
+          const t = data.videoThumbnails[0].url;
+          thumbnail = t.startsWith('http') ? t : `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
+        }
+
+        const streams = new Map<number, DirectStreamQuality>();
+        let bestAudioUrl: string | undefined = undefined;
+
+        if (Array.isArray(data.adaptiveFormats)) {
+          const audio = data.adaptiveFormats.find((f: any) => f.type && f.type.startsWith('audio/'));
+          if (audio && audio.url) bestAudioUrl = audio.url;
+
+          for (const f of data.adaptiveFormats) {
+            if (f.resolution && f.url) {
+              const heightMatch = f.resolution.match(/(\d+)p?/);
+              if (heightMatch) {
+                const height = parseInt(heightMatch[1], 10);
+                if (!streams.has(height)) {
+                  streams.set(height, {
+                    videoUrl: f.url,
+                    audioUrl: bestAudioUrl,
+                    height,
+                    label: getQualityLabel(height),
+                    filesize: f.bitrate && duration > 0 ? Math.round((parseInt(f.bitrate, 10) * duration) / 8) : undefined,
+                  });
+                }
+              }
+            }
+          }
+        }
+
+        if (Array.isArray(data.formatStreams)) {
+          for (const f of data.formatStreams) {
+            if (f.resolution && f.url) {
+              const heightMatch = f.resolution.match(/(\d+)p?/);
+              if (heightMatch) {
+                const height = parseInt(heightMatch[1], 10);
+                if (!streams.has(height)) {
+                  streams.set(height, {
+                    videoUrl: f.url,
+                    height,
+                    label: getQualityLabel(height),
+                  });
+                }
+              }
+            }
+          }
+        }
+
+        if (streams.size > 0) {
+          const qualities: VideoQuality[] = Array.from(streams.values())
+            .map((s) => ({
+              height: s.height,
+              label: s.label,
+              filesize: s.filesize,
+              formattedSize: formatBytes(s.filesize),
+            }))
+            .sort((a, b) => b.height - a.height);
+
+          console.log(`[ClipDown] Successfully extracted ${qualities.length} qualities via Invidious for ${videoId}`);
+          return { videoId, title, duration, thumbnail, uploader, qualities, streams };
+        }
+      } else if (ep.type === 'piped') {
+        const title = data.title || 'YouTube Video';
+        const duration = typeof data.duration === 'number' ? data.duration : 0;
+        const uploader = data.uploader || '';
+        const thumbnail = data.thumbnailUrl || `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
+
+        const streams = new Map<number, DirectStreamQuality>();
+        let bestAudioUrl: string | undefined = undefined;
+
+        if (Array.isArray(data.audioStreams) && data.audioStreams.length > 0) {
+          bestAudioUrl = data.audioStreams[0].url;
+        }
+
+        if (Array.isArray(data.videoStreams)) {
+          for (const f of data.videoStreams) {
+            if (f.height && f.url) {
+              const height = typeof f.height === 'number' ? f.height : parseInt(f.height, 10);
+              if (!streams.has(height)) {
+                streams.set(height, {
+                  videoUrl: f.url,
+                  audioUrl: f.videoOnly ? bestAudioUrl : undefined,
+                  height,
+                  label: getQualityLabel(height),
+                  filesize: f.bitrate && duration > 0 ? Math.round((f.bitrate * duration) / 8) : undefined,
+                });
+              }
+            }
+          }
+        }
+
+        if (streams.size > 0) {
+          const qualities: VideoQuality[] = Array.from(streams.values())
+            .map((s) => ({
+              height: s.height,
+              label: s.label,
+              filesize: s.filesize,
+              formattedSize: formatBytes(s.filesize),
+            }))
+            .sort((a, b) => b.height - a.height);
+
+          console.log(`[ClipDown] Successfully extracted ${qualities.length} qualities via Piped for ${videoId}`);
+          return { videoId, title, duration, thumbnail, uploader, qualities, streams };
+        }
+      }
+    } catch (e) {
+      console.warn(`[ClipDown] Endpoint ${ep.url} failed:`, e);
+    }
+  }
+  return null;
+}
+
+/**
  * Standard yt-dlp arguments optimized for datacenter and bypass
  */
 export function getYtDlpCommonArgs(client = 'web_embedded,android'): string[] {
@@ -122,6 +301,8 @@ export function getYtDlpCommonArgs(client = 'web_embedded,android'): string[] {
     '--geo-bypass',
     '--socket-timeout',
     '20',
+    '--js-runtimes',
+    `node:${process.execPath}`,
     '--extractor-args',
     `youtube:player_client=${client}`,
     '--user-agent',
@@ -152,12 +333,13 @@ function execProcess(
   return new Promise((resolve, reject) => {
     const ffmpegPath = getFfmpegBin();
     const ffmpegDir = path.dirname(ffmpegPath);
+    const nodeDir = path.dirname(process.execPath);
 
     const child = spawn(cmd, args, {
       stdio: ['ignore', 'pipe', 'pipe'],
       env: {
         ...process.env,
-        PATH: `${localBinDir}:${ffmpegDir}:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:${process.env.PATH || ''}`,
+        PATH: `${nodeDir}:${localBinDir}:${ffmpegDir}:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:${process.env.PATH || ''}`,
       },
     });
 
@@ -404,6 +586,31 @@ export async function fetchVideoMetadata(url: string): Promise<VideoMetadata> {
     }
   }
 
+  // Strategy 1.5: Invidious / Piped distributed API fallback (bypasses datacenter bot challenges)
+  const ytVideoId = extractYouTubeVideoId(url);
+  if (ytVideoId) {
+    try {
+      const streamInfo = await fetchFromInvidiousOrPiped(ytVideoId);
+      if (streamInfo && streamInfo.qualities.length > 0) {
+        directStreamCache.set(url, streamInfo);
+        return {
+          valid: true,
+          url,
+          title: streamInfo.title,
+          duration: streamInfo.duration,
+          formattedDuration: formatSeconds(streamInfo.duration),
+          thumbnail: streamInfo.thumbnail,
+          uploader: streamInfo.uploader,
+          platform: 'youtube',
+          qualities: streamInfo.qualities,
+          defaultQuality: pickDefaultQuality(streamInfo.qualities),
+        };
+      }
+    } catch (apiErr) {
+      console.warn('[ClipDown] Invidious/Piped fallback failed:', apiErr);
+    }
+  }
+
   // Strategy 2: ffprobe (for direct video links)
   try {
     const { stdout, code } = await execProcess(
@@ -522,61 +729,125 @@ export async function processVideoJob(jobId: string): Promise<void> {
   const outputPath = path.join(TEMP_DIR, `video_${job.id}.mp4`);
 
   try {
-    const q = job.selectedQuality;
-    const formatSelector = q
-      ? `bestvideo[height<=${q}][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=${q}]+bestaudio/best[height<=${q}]/best`
-      : 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio/best[ext=mp4]/best';
+    let success = false;
 
-    jobManager.updateJob(jobId, {
-      step: job.isFullVideo ? 'Downloading and merging video streams...' : 'Extracting video segment with FFmpeg...',
-      progress: 25,
-    });
-
-    const ytDlpArgs: string[] = [
-      '-f',
-      formatSelector,
-      '--merge-output-format',
-      'mp4',
-      ...getYtDlpCommonArgs('web_embedded,android'),
-      '--ffmpeg-location',
-      path.dirname(ffmpegBin),
-    ];
-
-    if (!job.isFullVideo && job.startTime && job.endTime) {
-      const timeSection = `*${job.startTime}-${job.endTime}`;
-      ytDlpArgs.push('--download-sections', timeSection, '--force-keyframes-at-cuts');
+    // Strategy 0: Direct Stream download via FFmpeg if available from Invidious/Piped
+    const videoId = extractYouTubeVideoId(job.url);
+    let streamInfo = directStreamCache.get(job.url);
+    if (!streamInfo && videoId) {
+      streamInfo = (await fetchFromInvidiousOrPiped(videoId)) || undefined;
+      if (streamInfo) directStreamCache.set(job.url, streamInfo);
     }
 
-    ytDlpArgs.push('-o', outputPath, job.url);
+    if (streamInfo && streamInfo.streams.size > 0) {
+      const q = job.selectedQuality;
+      let targetStream = q ? streamInfo.streams.get(q) : undefined;
+      if (!targetStream) {
+        const sorted = Array.from(streamInfo.streams.values()).sort((a, b) => b.height - a.height);
+        targetStream = (q ? sorted.find((s) => s.height <= q) : undefined) || sorted[0];
+      }
 
-    let success = false;
-    try {
-      const res = await execProcess(ytDlpBin, ytDlpArgs, {
-        timeoutMs: 300000,
-        onProgress: (text) => {
-          if (text.includes('[download]')) {
-            const match = text.match(/(\d+(\.\d+)?)%/);
-            if (match) {
-              const p = parseFloat(match[1]);
-              jobManager.updateJob(jobId, {
-                progress: Math.min(85, Math.floor(25 + p * 0.6)),
-                step: `Downloading stream (${Math.floor(p)}%)...`,
-              });
+      if (targetStream && targetStream.videoUrl) {
+        jobManager.updateJob(jobId, {
+          step: 'Downloading direct stream via FFmpeg...',
+          progress: 30,
+        });
+
+        try {
+          const ffmpegArgs: string[] = ['-y'];
+          if (!job.isFullVideo && typeof job.startSeconds === 'number' && typeof job.endSeconds === 'number') {
+            ffmpegArgs.push('-ss', job.startSeconds.toString(), '-to', job.endSeconds.toString());
+            ffmpegArgs.push('-i', targetStream.videoUrl);
+            if (targetStream.audioUrl) {
+              ffmpegArgs.push('-ss', job.startSeconds.toString(), '-to', job.endSeconds.toString());
+              ffmpegArgs.push('-i', targetStream.audioUrl);
+              ffmpegArgs.push('-c:v', 'copy', '-c:a', 'aac', '-b:a', '128k', '-movflags', '+faststart', outputPath);
+            } else {
+              ffmpegArgs.push('-c', 'copy', '-movflags', '+faststart', outputPath);
             }
-          } else if (text.includes('[Merger]') || text.includes('ffmpeg')) {
-            jobManager.updateJob(jobId, {
-              progress: 90,
-              step: 'Merging audio and video with FFmpeg...',
-            });
+          } else {
+            ffmpegArgs.push('-i', targetStream.videoUrl);
+            if (targetStream.audioUrl) {
+              ffmpegArgs.push('-i', targetStream.audioUrl);
+              ffmpegArgs.push('-c:v', 'copy', '-c:a', 'aac', '-b:a', '128k', '-movflags', '+faststart', outputPath);
+            } else {
+              ffmpegArgs.push('-c', 'copy', '-movflags', '+faststart', outputPath);
+            }
           }
-        },
+
+          const res = await execProcess(ffmpegBin, ffmpegArgs, {
+            timeoutMs: 300000,
+            onProgress: () => {
+              jobManager.updateJob(jobId, { progress: 80, step: 'Processing and merging clip...' });
+            },
+          });
+
+          if (res.code === 0 && fs.existsSync(outputPath) && fs.statSync(outputPath).size > 0) {
+            success = true;
+          }
+        } catch (streamErr) {
+          console.warn('[ClipDown] Direct stream FFmpeg failed, falling back to yt-dlp:', streamErr);
+        }
+      }
+    }
+
+    // Strategy 1: yt-dlp
+    if (!success) {
+      const q = job.selectedQuality;
+      const formatSelector = q
+        ? `bestvideo[height<=${q}][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=${q}]+bestaudio/best[height<=${q}]/best`
+        : 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio/best[ext=mp4]/best';
+
+      jobManager.updateJob(jobId, {
+        step: job.isFullVideo ? 'Downloading and merging video streams...' : 'Extracting video segment with FFmpeg...',
+        progress: 25,
       });
 
-      if (res.code === 0 && fs.existsSync(outputPath) && fs.statSync(outputPath).size > 0) {
-        success = true;
+      const ytDlpArgs: string[] = [
+        '-f',
+        formatSelector,
+        '--merge-output-format',
+        'mp4',
+        ...getYtDlpCommonArgs('web_embedded,android'),
+        '--ffmpeg-location',
+        path.dirname(ffmpegBin),
+      ];
+
+      if (!job.isFullVideo && job.startTime && job.endTime) {
+        const timeSection = `*${job.startTime}-${job.endTime}`;
+        ytDlpArgs.push('--download-sections', timeSection, '--force-keyframes-at-cuts');
       }
-    } catch (ytErr) {
-      console.warn(`yt-dlp processing failed for job ${jobId}, falling back to direct ffmpeg:`, ytErr);
+
+      ytDlpArgs.push('-o', outputPath, job.url);
+
+      try {
+        const res = await execProcess(ytDlpBin, ytDlpArgs, {
+          timeoutMs: 300000,
+          onProgress: (text) => {
+            if (text.includes('[download]')) {
+              const match = text.match(/(\d+(\.\d+)?)%/);
+              if (match) {
+                const p = parseFloat(match[1]);
+                jobManager.updateJob(jobId, {
+                  progress: Math.min(85, Math.floor(25 + p * 0.6)),
+                  step: `Downloading stream (${Math.floor(p)}%)...`,
+                });
+              }
+            } else if (text.includes('[Merger]') || text.includes('ffmpeg')) {
+              jobManager.updateJob(jobId, {
+                progress: 90,
+                step: 'Merging audio and video with FFmpeg...',
+              });
+            }
+          },
+        });
+
+        if (res.code === 0 && fs.existsSync(outputPath) && fs.statSync(outputPath).size > 0) {
+          success = true;
+        }
+      } catch (ytErr) {
+        console.warn(`yt-dlp processing failed for job ${jobId}, falling back to direct ffmpeg:`, ytErr);
+      }
     }
 
     // Strategy 2: Direct FFmpeg cut/stream fallback
