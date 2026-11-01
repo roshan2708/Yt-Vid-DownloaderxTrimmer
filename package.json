@@ -11,7 +11,8 @@
     "server": "tsx server/index.ts",
     "start:backend": "IS_STANDALONE_BACKEND=true tsx server/index.ts",
     "dev:all": "concurrently -n \"backend,frontend\" -c \"blue,green\" \"npm run server\" \"npm run dev\"",
-    "start:all": "concurrently -n \"backend,frontend\" -c \"blue,green\" \"npm run server\" \"next start -p ${PORT:-3000}\""
+    "start:all": "concurrently -n \"backend,frontend\" -c \"blue,green\" \"npm run server\" \"next start -p ${PORT:-3000}\"",
+    "postinstall": "node scripts/ensure-ytdlp.js"
   },
   "dependencies": {
     "cors": "^2.8.6",

@@ -5,23 +5,83 @@ import { Job, VideoMetadata, VideoQuality } from '../types';
 import { formatBytes, formatSeconds, getQualityLabel } from '../utils/validator';
 import { jobManager, TEMP_DIR } from './jobManager';
 
-// Candidate paths for binaries (handles macOS Homebrew, Linux Ubuntu VPS, standard PATH)
-const YT_DLP_CANDIDATES = ['yt-dlp', '/opt/homebrew/bin/yt-dlp', '/usr/local/bin/yt-dlp', '/usr/bin/yt-dlp'];
-const FFMPEG_CANDIDATES = ['ffmpeg', '/opt/homebrew/bin/ffmpeg', '/usr/local/bin/ffmpeg', '/usr/bin/ffmpeg'];
-const FFPROBE_CANDIDATES = ['ffprobe', '/opt/homebrew/bin/ffprobe', '/usr/local/bin/ffprobe', '/usr/bin/ffprobe'];
+// Candidate paths for binaries
+const localBinDir = path.resolve(process.cwd(), 'bin');
+const localYtDlp = path.join(localBinDir, process.platform === 'win32' ? 'yt-dlp.exe' : 'yt-dlp');
+const localFfmpeg = path.join(localBinDir, process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg');
+const localFfprobe = path.join(localBinDir, process.platform === 'win32' ? 'ffprobe.exe' : 'ffprobe');
+
+const YT_DLP_CANDIDATES = [
+  localYtDlp,
+  '/usr/local/bin/yt-dlp',
+  '/usr/bin/yt-dlp',
+  '/opt/homebrew/bin/yt-dlp',
+  'yt-dlp',
+];
+
+const FFMPEG_CANDIDATES = [
+  localFfmpeg,
+  '/usr/bin/ffmpeg',
+  '/usr/local/bin/ffmpeg',
+  '/opt/homebrew/bin/ffmpeg',
+  'ffmpeg',
+];
+
+const FFPROBE_CANDIDATES = [
+  localFfprobe,
+  '/usr/bin/ffprobe',
+  '/usr/local/bin/ffprobe',
+  '/opt/homebrew/bin/ffprobe',
+  'ffprobe',
+];
+
+let autoInstalled = false;
+
+function ensureBinariesPresent(): void {
+  if (autoInstalled) return;
+  autoInstalled = true;
+  try {
+    const scriptPath = path.resolve(__dirname, '../../scripts/ensure-ytdlp.js');
+    if (fs.existsSync(scriptPath)) {
+      const { execSync } = require('child_process');
+      execSync(`node "${scriptPath}"`, { stdio: 'inherit', timeout: 90000 });
+    }
+  } catch (e) {
+    console.warn('[ClipDown] Dynamic ensure-ytdlp failed:', e);
+  }
+}
 
 function resolveBinary(candidates: string[]): string {
   for (const bin of candidates) {
-    if (bin.startsWith('/')) {
+    if (bin.startsWith('/') || bin.includes(':\\')) {
       if (fs.existsSync(bin)) return bin;
     }
   }
-  return candidates[0]; // fallback to naked command (uses PATH)
+
+  // If local binary doesn't exist and on production, try ensuring binaries
+  if (!autoInstalled) {
+    ensureBinariesPresent();
+    for (const bin of candidates) {
+      if (bin.startsWith('/') || bin.includes(':\\')) {
+        if (fs.existsSync(bin)) return bin;
+      }
+    }
+  }
+
+  return candidates[candidates.length - 1]; // fallback to naked command (uses PATH)
 }
 
-const YT_DLP_BIN = resolveBinary(YT_DLP_CANDIDATES);
-const FFMPEG_BIN = resolveBinary(FFMPEG_CANDIDATES);
-const FFPROBE_BIN = resolveBinary(FFPROBE_CANDIDATES);
+export function getYtDlpBin(): string {
+  return resolveBinary(YT_DLP_CANDIDATES);
+}
+
+export function getFfmpegBin(): string {
+  return resolveBinary(FFMPEG_CANDIDATES);
+}
+
+export function getFfprobeBin(): string {
+  return resolveBinary(FFPROBE_CANDIDATES);
+}
 
 /**
  * Execute command with promise
@@ -32,11 +92,14 @@ function execProcess(
   options?: { onProgress?: (text: string) => void; timeoutMs?: number }
 ): Promise<{ stdout: string; stderr: string; code: number }> {
   return new Promise((resolve, reject) => {
+    const ffmpegPath = getFfmpegBin();
+    const ffmpegDir = path.dirname(ffmpegPath);
+
     const child = spawn(cmd, args, {
       stdio: ['ignore', 'pipe', 'pipe'],
       env: {
         ...process.env,
-        PATH: `/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:${process.env.PATH || ''}`,
+        PATH: `${localBinDir}:${ffmpegDir}:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:${process.env.PATH || ''}`,
       },
     });
 
@@ -93,7 +156,6 @@ interface RawYtDlpFormat {
  * Extract available video qualities from yt-dlp metadata
  */
 function parseAvailableQualities(formats: RawYtDlpFormat[] = [], duration: number = 0): VideoQuality[] {
-  // Find highest audio filesize to add to video-only formats
   let bestAudioSize = 0;
   for (const f of formats) {
     if (f.vcodec === 'none' && f.acodec !== 'none') {
@@ -104,16 +166,13 @@ function parseAvailableQualities(formats: RawYtDlpFormat[] = [], duration: numbe
     }
   }
 
-  // Group by distinct video heights
   const heightMap = new Map<number, { formatId?: string; filesize?: number }>();
 
   for (const f of formats) {
-    // Must contain a video stream and a valid height
     if (f.vcodec !== 'none' && typeof f.height === 'number' && f.height > 0) {
       const h = f.height;
       let calculatedSize = f.filesize || f.filesize_approx;
 
-      // If video-only, add estimated audio stream size
       if (f.acodec === 'none' && calculatedSize && bestAudioSize > 0) {
         calculatedSize += bestAudioSize;
       } else if (!calculatedSize && f.tbr && duration > 0) {
@@ -141,30 +200,21 @@ function parseAvailableQualities(formats: RawYtDlpFormat[] = [], duration: numbe
     });
   }
 
-  // Sort descending by height (e.g. 2160, 1440, 1080, 720, 480...)
   qualities.sort((a, b) => b.height - a.height);
   return qualities;
 }
 
-/**
- * Calculates default quality according to rule:
- * "Default to 720p if available; otherwise select the highest available quality up to 720p."
- */
 function pickDefaultQuality(qualities: VideoQuality[]): number | undefined {
   if (qualities.length === 0) return undefined;
 
-  // 1. If 720p is available, pick 720
   const has720 = qualities.find((q) => q.height === 720);
   if (has720) return 720;
 
-  // 2. Highest available quality up to 720
   const upTo720 = qualities.filter((q) => q.height <= 720);
   if (upTo720.length > 0) {
-    // qualities are sorted descending, so first item is highest <= 720
     return upTo720[0].height;
   }
 
-  // 3. Otherwise pick lowest of what's available (> 720) or first
   return qualities[qualities.length - 1].height;
 }
 
@@ -172,27 +222,48 @@ function pickDefaultQuality(qualities: VideoQuality[]): number | undefined {
  * Fetches video metadata via yt-dlp, with fallback to ffprobe
  */
 export async function fetchVideoMetadata(url: string): Promise<VideoMetadata> {
-  // Strategy 1: yt-dlp
+  const ytDlpBin = getYtDlpBin();
+  const ffprobeBin = getFfprobeBin();
+
+  let ytDlpStderr = '';
+  let ytDlpErrorObj: Error | null = null;
+
+  // Strategy 1: yt-dlp with datacenter-friendly arguments
   try {
-    const { stdout, code } = await execProcess(
-      YT_DLP_BIN,
-      ['--dump-single-json', '--no-warnings', '--no-playlist', '--ignore-errors', url],
-      { timeoutMs: 30000 }
-    );
+    const ytDlpArgs = [
+      '--dump-single-json',
+      '--no-warnings',
+      '--no-playlist',
+      '--no-check-certificates',
+      '--geo-bypass',
+      '--socket-timeout',
+      '20',
+      '--extractor-args',
+      'youtube:player_client=android,ios,web',
+      '--user-agent',
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      url,
+    ];
+
+    const { stdout, stderr, code } = await execProcess(ytDlpBin, ytDlpArgs, { timeoutMs: 30000 });
+    ytDlpStderr = stderr;
 
     if (code === 0 && stdout.trim()) {
       const data = JSON.parse(stdout);
       let duration = typeof data.duration === 'number' ? data.duration : 0;
       const title = data.title || 'Video';
       const thumbnail =
-        data.thumbnail || (Array.isArray(data.thumbnails) && data.thumbnails.length > 0 ? data.thumbnails[0].url : undefined);
+        data.thumbnail ||
+        (Array.isArray(data.thumbnails) && data.thumbnails.length > 0
+          ? data.thumbnails[data.thumbnails.length - 1].url
+          : undefined);
       const uploader = data.uploader || data.channel || data.extractor || '';
 
       // If duration is 0, query ffprobe for duration for direct links
       if (duration === 0) {
         try {
           const probe = await execProcess(
-            FFPROBE_BIN,
+            ffprobeBin,
             ['-v', 'error', '-show_entries', 'format=duration', '-of', 'json', url],
             { timeoutMs: 10000 }
           );
@@ -207,14 +278,13 @@ export async function fetchVideoMetadata(url: string): Promise<VideoMetadata> {
         }
       }
 
-      // Parse qualities from yt-dlp format list
       let qualities = parseAvailableQualities(data.formats || [], duration);
 
-      // If no video formats with height discovered, probe direct file with ffprobe
+      // If no video formats discovered, probe direct file with ffprobe
       if (qualities.length === 0) {
         try {
           const probe = await execProcess(
-            FFPROBE_BIN,
+            ffprobeBin,
             [
               '-v',
               'error',
@@ -247,7 +317,6 @@ export async function fetchVideoMetadata(url: string): Promise<VideoMetadata> {
         }
       }
 
-      // If still empty (e.g. standard audio/video direct stream), provide standard default
       if (qualities.length === 0) {
         qualities = [
           {
@@ -272,14 +341,15 @@ export async function fetchVideoMetadata(url: string): Promise<VideoMetadata> {
         defaultQuality,
       };
     }
-  } catch (err) {
-    console.warn('yt-dlp metadata extraction failed, trying ffprobe:', err);
+  } catch (err: unknown) {
+    ytDlpErrorObj = err instanceof Error ? err : new Error(String(err));
+    console.warn('[ClipDown] yt-dlp metadata extraction failed, trying ffprobe:', ytDlpErrorObj.message);
   }
 
   // Strategy 2: ffprobe (for direct video links)
   try {
     const { stdout, code } = await execProcess(
-      FFPROBE_BIN,
+      ffprobeBin,
       [
         '-v',
         'error',
@@ -332,8 +402,31 @@ export async function fetchVideoMetadata(url: string): Promise<VideoMetadata> {
         defaultQuality: height,
       };
     }
-  } catch (err) {
-    console.error('ffprobe metadata extraction failed:', err);
+  } catch (probeErr: unknown) {
+    console.error('[ClipDown] ffprobe metadata extraction failed:', probeErr);
+  }
+
+  // Generate actionable error message from stderr/error
+  const fullErrorText = `${ytDlpStderr} ${ytDlpErrorObj?.message || ''}`.trim();
+  console.error('[ClipDown] Video inspection failed details:', fullErrorText);
+
+  if (fullErrorText.includes('bot') || fullErrorText.includes('Sign in to confirm')) {
+    throw new Error('YouTube bot verification triggered on cloud server. Please try a different video or direct video link.');
+  }
+  if (fullErrorText.includes('Private video') || fullErrorText.includes('Sign in')) {
+    throw new Error('This video is private or restricted and cannot be downloaded.');
+  }
+  if (fullErrorText.includes('Video unavailable') || fullErrorText.includes('does not exist')) {
+    throw new Error('Video is unavailable or has been removed.');
+  }
+  if (fullErrorText.includes('ENOENT') || fullErrorText.includes('not found')) {
+    throw new Error('Media extraction tool (yt-dlp/ffmpeg) is not installed on the server. Please check deployment instructions.');
+  }
+
+  // Extract primary ERROR: line if available
+  const errorLines = ytDlpStderr.split('\n').filter((l) => l.includes('ERROR:') || l.includes('HTTP Error'));
+  if (errorLines.length > 0) {
+    throw new Error(errorLines[0].replace(/^ERROR:\s*/, '').trim());
   }
 
   throw new Error('Unable to inspect video. Please verify the URL is accessible and not private or protected.');
@@ -354,6 +447,9 @@ export async function processVideoJob(jobId: string): Promise<void> {
   const job = jobManager.getJob(jobId);
   if (!job) return;
 
+  const ytDlpBin = getYtDlpBin();
+  const ffmpegBin = getFfmpegBin();
+
   jobManager.updateJob(jobId, {
     status: 'processing',
     step: job.isFullVideo ? 'Processing video...' : 'Processing video clip...',
@@ -366,7 +462,6 @@ export async function processVideoJob(jobId: string): Promise<void> {
   const outputPath = path.join(TEMP_DIR, `video_${job.id}.mp4`);
 
   try {
-    // Construct quality selector
     const q = job.selectedQuality;
     const formatSelector = q
       ? `bestvideo[height<=${q}][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=${q}]+bestaudio/best[height<=${q}]/best`
@@ -377,7 +472,19 @@ export async function processVideoJob(jobId: string): Promise<void> {
       progress: 25,
     });
 
-    const ytDlpArgs: string[] = ['-f', formatSelector, '--merge-output-format', 'mp4', '--no-playlist'];
+    const ytDlpArgs: string[] = [
+      '-f',
+      formatSelector,
+      '--merge-output-format',
+      'mp4',
+      '--no-playlist',
+      '--no-check-certificates',
+      '--geo-bypass',
+      '--extractor-args',
+      'youtube:player_client=android,ios,web',
+      '--ffmpeg-location',
+      path.dirname(ffmpegBin),
+    ];
 
     if (!job.isFullVideo && job.startTime && job.endTime) {
       const timeSection = `*${job.startTime}-${job.endTime}`;
@@ -388,8 +495,8 @@ export async function processVideoJob(jobId: string): Promise<void> {
 
     let success = false;
     try {
-      const res = await execProcess(YT_DLP_BIN, ytDlpArgs, {
-        timeoutMs: 300000, // 5 minutes timeout for download and processing
+      const res = await execProcess(ytDlpBin, ytDlpArgs, {
+        timeoutMs: 300000,
         onProgress: (text) => {
           if (text.includes('[download]')) {
             const match = text.match(/(\d+(\.\d+)?)%/);
@@ -447,7 +554,7 @@ export async function processVideoJob(jobId: string): Promise<void> {
         outputPath
       );
 
-      const res = await execProcess(FFMPEG_BIN, ffmpegArgs, {
+      const res = await execProcess(ffmpegBin, ffmpegArgs, {
         timeoutMs: 300000,
       });
 
@@ -483,7 +590,6 @@ export async function processVideoJob(jobId: string): Promise<void> {
     const errorMsg = err instanceof Error ? err.message : String(err);
     console.error(`Error processing job ${jobId}:`, errorMsg);
 
-    // Clean up partial file if exists
     if (fs.existsSync(outputPath)) {
       try {
         fs.unlinkSync(outputPath);
