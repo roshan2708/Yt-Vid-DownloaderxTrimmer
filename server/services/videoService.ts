@@ -84,6 +84,64 @@ export function getFfprobeBin(): string {
 }
 
 /**
+ * Helper to resolve cookies file from env or disk
+ */
+export function getCookieFilePath(): string | null {
+  if (process.env.COOKIES_FILE && fs.existsSync(process.env.COOKIES_FILE)) {
+    return process.env.COOKIES_FILE;
+  }
+  const localCookies = path.resolve(process.cwd(), 'cookies.txt');
+  if (fs.existsSync(localCookies)) {
+    return localCookies;
+  }
+  const envCookies = process.env.YOUTUBE_COOKIES || process.env.COOKIES_CONTENT;
+  if (envCookies && envCookies.trim().length > 10) {
+    const tempCookiesPath = path.join(TEMP_DIR, 'youtube_cookies.txt');
+    try {
+      let content = envCookies.trim();
+      if (content.startsWith('base64:')) {
+        content = Buffer.from(content.slice(7), 'base64').toString('utf-8');
+      }
+      fs.writeFileSync(tempCookiesPath, content, { encoding: 'utf-8' });
+      return tempCookiesPath;
+    } catch (e) {
+      console.warn('[ClipDown] Failed to write cookies from env:', e);
+    }
+  }
+  return null;
+}
+
+/**
+ * Standard yt-dlp arguments optimized for datacenter and bypass
+ */
+export function getYtDlpCommonArgs(client = 'web_embedded,android'): string[] {
+  const args = [
+    '--no-warnings',
+    '--no-playlist',
+    '--no-check-certificates',
+    '--geo-bypass',
+    '--socket-timeout',
+    '20',
+    '--extractor-args',
+    `youtube:player_client=${client}`,
+    '--user-agent',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+  ];
+
+  const proxy = process.env.PROXY_URL || process.env.HTTP_PROXY || process.env.HTTPS_PROXY;
+  if (proxy) {
+    args.push('--proxy', proxy);
+  }
+
+  const cookieFile = getCookieFilePath();
+  if (cookieFile) {
+    args.push('--cookies', cookieFile);
+  }
+
+  return args;
+}
+
+/**
  * Execute command with promise
  */
 function execProcess(
@@ -228,122 +286,122 @@ export async function fetchVideoMetadata(url: string): Promise<VideoMetadata> {
   let ytDlpStderr = '';
   let ytDlpErrorObj: Error | null = null;
 
-  // Strategy 1: yt-dlp with datacenter-friendly arguments
-  try {
-    const ytDlpArgs = [
-      '--dump-single-json',
-      '--no-warnings',
-      '--no-playlist',
-      '--no-check-certificates',
-      '--geo-bypass',
-      '--socket-timeout',
-      '20',
-      '--extractor-args',
-      'youtube:player_client=android,ios,web',
-      '--user-agent',
-      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      url,
-    ];
+  // Strategy 1: yt-dlp with multi-client bypass fallback
+  const candidateClients = ['web_embedded,android', 'mweb,android', 'tv,android', 'android,web'];
 
-    const { stdout, stderr, code } = await execProcess(ytDlpBin, ytDlpArgs, { timeoutMs: 30000 });
-    ytDlpStderr = stderr;
-
-    if (code === 0 && stdout.trim()) {
-      const data = JSON.parse(stdout);
-      let duration = typeof data.duration === 'number' ? data.duration : 0;
-      const title = data.title || 'Video';
-      const thumbnail =
-        data.thumbnail ||
-        (Array.isArray(data.thumbnails) && data.thumbnails.length > 0
-          ? data.thumbnails[data.thumbnails.length - 1].url
-          : undefined);
-      const uploader = data.uploader || data.channel || data.extractor || '';
-
-      // If duration is 0, query ffprobe for duration for direct links
-      if (duration === 0) {
-        try {
-          const probe = await execProcess(
-            ffprobeBin,
-            ['-v', 'error', '-show_entries', 'format=duration', '-of', 'json', url],
-            { timeoutMs: 10000 }
-          );
-          if (probe.code === 0 && probe.stdout.trim()) {
-            const probeData = JSON.parse(probe.stdout);
-            if (probeData.format?.duration) {
-              duration = Math.round(parseFloat(probeData.format.duration));
-            }
-          }
-        } catch {
-          // ignore
-        }
-      }
-
-      let qualities = parseAvailableQualities(data.formats || [], duration);
-
-      // If no video formats discovered, probe direct file with ffprobe
-      if (qualities.length === 0) {
-        try {
-          const probe = await execProcess(
-            ffprobeBin,
-            [
-              '-v',
-              'error',
-              '-select_streams',
-              'v:0',
-              '-show_entries',
-              'stream=height,width:format=size',
-              '-of',
-              'json',
-              url,
-            ],
-            { timeoutMs: 10000 }
-          );
-          if (probe.code === 0 && probe.stdout.trim()) {
-            const probeData = JSON.parse(probe.stdout);
-            const height = probeData.streams?.[0]?.height;
-            const sizeStr = probeData.format?.size;
-            const fileSize = sizeStr ? parseInt(sizeStr, 10) : undefined;
-            if (typeof height === 'number' && height > 0) {
-              qualities.push({
-                height,
-                label: getQualityLabel(height),
-                filesize: fileSize,
-                formattedSize: formatBytes(fileSize),
-              });
-            }
-          }
-        } catch {
-          // ignore
-        }
-      }
-
-      if (qualities.length === 0) {
-        qualities = [
-          {
-            height: 720,
-            label: '720p HD',
-          },
-        ];
-      }
-
-      const defaultQuality = pickDefaultQuality(qualities);
-
-      return {
-        valid: true,
+  for (const client of candidateClients) {
+    try {
+      const ytDlpArgs = [
+        '--dump-single-json',
+        ...getYtDlpCommonArgs(client),
         url,
-        title,
-        duration,
-        formattedDuration: formatSeconds(duration),
-        thumbnail,
-        uploader,
-        platform: data.extractor_key || 'video',
-        qualities,
-        defaultQuality,
-      };
+      ];
+
+      const { stdout, stderr, code } = await execProcess(ytDlpBin, ytDlpArgs, { timeoutMs: 30000 });
+      ytDlpStderr = stderr;
+
+      if (code === 0 && stdout.trim()) {
+        const data = JSON.parse(stdout);
+        let duration = typeof data.duration === 'number' ? data.duration : 0;
+        const title = data.title || 'Video';
+        const thumbnail =
+          data.thumbnail ||
+          (Array.isArray(data.thumbnails) && data.thumbnails.length > 0
+            ? data.thumbnails[data.thumbnails.length - 1].url
+            : undefined);
+        const uploader = data.uploader || data.channel || data.extractor || '';
+
+        // If duration is 0, query ffprobe for duration for direct links
+        if (duration === 0) {
+          try {
+            const probe = await execProcess(
+              ffprobeBin,
+              ['-v', 'error', '-show_entries', 'format=duration', '-of', 'json', url],
+              { timeoutMs: 10000 }
+            );
+            if (probe.code === 0 && probe.stdout.trim()) {
+              const probeData = JSON.parse(probe.stdout);
+              if (probeData.format?.duration) {
+                duration = Math.round(parseFloat(probeData.format.duration));
+              }
+            }
+          } catch {
+            // ignore
+          }
+        }
+
+        let qualities = parseAvailableQualities(data.formats || [], duration);
+
+        // If no video formats discovered, probe direct file with ffprobe
+        if (qualities.length === 0) {
+          try {
+            const probe = await execProcess(
+              ffprobeBin,
+              [
+                '-v',
+                'error',
+                '-select_streams',
+                'v:0',
+                '-show_entries',
+                'stream=height,width:format=size',
+                '-of',
+                'json',
+                url,
+              ],
+              { timeoutMs: 10000 }
+            );
+            if (probe.code === 0 && probe.stdout.trim()) {
+              const probeData = JSON.parse(probe.stdout);
+              const height = probeData.streams?.[0]?.height;
+              const sizeStr = probeData.format?.size;
+              const fileSize = sizeStr ? parseInt(sizeStr, 10) : undefined;
+              if (typeof height === 'number' && height > 0) {
+                qualities.push({
+                  height,
+                  label: getQualityLabel(height),
+                  filesize: fileSize,
+                  formattedSize: formatBytes(fileSize),
+                });
+              }
+            }
+          } catch {
+            // ignore
+          }
+        }
+
+        if (qualities.length === 0) {
+          qualities = [
+            {
+              height: 720,
+              label: '720p HD',
+            },
+          ];
+        }
+
+        const defaultQuality = pickDefaultQuality(qualities);
+
+        return {
+          valid: true,
+          url,
+          title,
+          duration,
+          formattedDuration: formatSeconds(duration),
+          thumbnail,
+          uploader,
+          platform: data.extractor_key || 'video',
+          qualities,
+          defaultQuality,
+        };
+      }
+
+      // If error is not bot verification, no need to cycle through all clients
+      if (!stderr.includes('bot') && !stderr.includes('Sign in')) {
+        break;
+      }
+    } catch (err: unknown) {
+      ytDlpErrorObj = err instanceof Error ? err : new Error(String(err));
+      console.warn(`[ClipDown] yt-dlp with client ${client} failed:`, ytDlpErrorObj.message);
     }
-  } catch (err: unknown) {
-    ytDlpErrorObj = err instanceof Error ? err : new Error(String(err));
-    console.warn('[ClipDown] yt-dlp metadata extraction failed, trying ffprobe:', ytDlpErrorObj.message);
   }
 
   // Strategy 2: ffprobe (for direct video links)
@@ -411,7 +469,9 @@ export async function fetchVideoMetadata(url: string): Promise<VideoMetadata> {
   console.error('[ClipDown] Video inspection failed details:', fullErrorText);
 
   if (fullErrorText.includes('bot') || fullErrorText.includes('Sign in to confirm')) {
-    throw new Error('YouTube bot verification triggered on cloud server. Please try a different video or direct video link.');
+    throw new Error(
+      'YouTube bot verification triggered on cloud server. Please configure YOUTUBE_COOKIES in Render Environment Variables or try another video.'
+    );
   }
   if (fullErrorText.includes('Private video') || fullErrorText.includes('Sign in')) {
     throw new Error('This video is private or restricted and cannot be downloaded.');
@@ -477,11 +537,7 @@ export async function processVideoJob(jobId: string): Promise<void> {
       formatSelector,
       '--merge-output-format',
       'mp4',
-      '--no-playlist',
-      '--no-check-certificates',
-      '--geo-bypass',
-      '--extractor-args',
-      'youtube:player_client=android,ios,web',
+      ...getYtDlpCommonArgs('web_embedded,android'),
       '--ffmpeg-location',
       path.dirname(ffmpegBin),
     ];
