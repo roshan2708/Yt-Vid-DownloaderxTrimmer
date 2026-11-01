@@ -152,6 +152,18 @@ Streams the generated MP4 file to the client with `Content-Disposition: attachme
 
 ## 5. Production Deployment
 
+### Render Deployment (Recommended All-In-One Container)
+
+Deploy both the Next.js frontend and FFmpeg video processing backend in a single container on Render:
+
+1. Connect your repository to [Render](https://dashboard.render.com).
+2. Create a **New Web Service** and select **Docker** runtime (automatically detected via `Dockerfile`).
+3. Add your Firebase environment variables.
+4. Add your Render domain to Firebase Console (**Authentication -> Settings -> Authorized Domains**).
+5. Detailed instructions are in [RENDER_DEPLOY.md](RENDER_DEPLOY.md).
+
+---
+
 ### Frontend Deployment (Vercel)
 
 1. Push your repository to GitHub / GitLab.

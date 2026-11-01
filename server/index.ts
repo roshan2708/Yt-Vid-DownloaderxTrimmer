@@ -3,14 +3,25 @@ import dotenv from 'dotenv';
 import express, { Request, Response } from 'express';
 import rateLimit from 'express-rate-limit';
 import fs from 'fs';
+import { AuthRequest, requireAuth } from './middleware/authMiddleware';
 import { jobManager } from './services/jobManager';
 import { fetchVideoMetadata, processVideoJob } from './services/videoService';
+import { getFirebaseAdminApp } from './utils/firebaseAdmin';
 import { validateTimeRange, validateVideoUrl } from './utils/validator';
 
+import path from 'path';
+
+// Load .env and .env.local
 dotenv.config();
+dotenv.config({ path: path.resolve(process.cwd(), '.env.local') });
+
+// Initialize Firebase Admin SDK
+getFirebaseAdminApp();
 
 const app = express();
-const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 4000;
+const PORT = process.env.BACKEND_PORT
+  ? parseInt(process.env.BACKEND_PORT, 10)
+  : (process.env.PORT && process.env.IS_STANDALONE_BACKEND ? parseInt(process.env.PORT, 10) : 4000);
 
 // Middleware
 app.use(express.json());
@@ -48,7 +59,8 @@ app.get('/health', (_req: Request, res: Response) => {
 
 /**
  * POST /api/validate
- * Validates the video URL and returns metadata, available qualities, and default selection
+ * Public: Validates the video URL and returns metadata, available qualities, and default selection
+ * Users can inspect video details before signing in.
  */
 app.post('/api/validate', async (req: Request, res: Response): Promise<void> => {
   try {
@@ -70,11 +82,13 @@ app.post('/api/validate', async (req: Request, res: Response): Promise<void> => 
 
 /**
  * POST /api/process
- * Validates inputs, quality selection, timestamps (or full video), creates job, starts trimming/downloading
+ * Protected: Requires verified Firebase ID Token in Authorization: Bearer <token>
+ * Validates inputs, creates job associated with the user, starts trimming/downloading
  */
-app.post('/api/process', processLimiter, async (req: Request, res: Response): Promise<void> => {
+app.post('/api/process', requireAuth, processLimiter, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { url, quality, startTime, endTime } = req.body;
+    const userId = req.user?.uid;
 
     // 1. Validate URL
     const urlCheck = validateVideoUrl(url);
@@ -86,14 +100,12 @@ app.post('/api/process', processLimiter, async (req: Request, res: Response): Pr
     // 2. Fetch metadata to verify video existence, duration, and qualities
     let videoDuration: number | undefined;
     let videoTitle = 'Video';
-    let availableQualities: number[] = [];
     let defaultQuality: number | undefined;
 
     try {
       const meta = await fetchVideoMetadata(urlCheck.normalizedUrl || url);
       videoDuration = meta.duration;
       videoTitle = meta.title;
-      availableQualities = meta.qualities.map((q) => q.height);
       defaultQuality = meta.defaultQuality;
     } catch {
       console.warn('Metadata fetch warning prior to processing');
@@ -112,14 +124,13 @@ app.post('/api/process', processLimiter, async (req: Request, res: Response): Pr
     }
 
     // 4. Validate Time Range
-    // If both empty -> full video. If both provided -> clip. If only one -> error.
     const timeCheck = validateTimeRange(startTime, endTime, videoDuration);
     if (!timeCheck.isValid) {
       res.status(400).json({ error: timeCheck.error });
       return;
     }
 
-    // 5. Create Job
+    // 5. Create Job with authenticated user UID
     const job = jobManager.createJob({
       url: urlCheck.normalizedUrl || url,
       title: videoTitle,
@@ -129,6 +140,7 @@ app.post('/api/process', processLimiter, async (req: Request, res: Response): Pr
       endSeconds: timeCheck.endSeconds,
       isFullVideo: timeCheck.isFullVideo,
       selectedQuality,
+      userId,
     });
 
     // 6. Start processing in background
@@ -177,14 +189,21 @@ app.get('/api/status/:jobId', (req: Request, res: Response): void => {
 
 /**
  * GET /api/download/:jobId
+ * Protected: Requires verified Firebase ID Token
  * Downloads the generated MP4 file
  */
-app.get('/api/download/:jobId', (req: Request, res: Response): void => {
+app.get('/api/download/:jobId', requireAuth, (req: AuthRequest, res: Response): void => {
   const jobId = Array.isArray(req.params.jobId) ? req.params.jobId[0] : req.params.jobId;
   const job = jobManager.getJob(jobId);
 
   if (!job) {
     res.status(404).json({ error: 'Job not found or has expired.' });
+    return;
+  }
+
+  // Verify that the downloading user owns the job
+  if (job.userId && req.user?.uid && job.userId !== req.user.uid) {
+    res.status(403).json({ error: 'Forbidden: You do not have permission to download this clip.' });
     return;
   }
 

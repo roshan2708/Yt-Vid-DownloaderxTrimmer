@@ -1,6 +1,14 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { User } from 'firebase/auth';
+import {
+  checkRedirectResult,
+  getCurrentIdToken,
+  onAuthStateChange,
+  signInWithGoogle,
+  signOutUser,
+} from '@/src/lib/auth';
 
 interface VideoQuality {
   height: number;
@@ -37,12 +45,21 @@ interface JobStatusResponse {
 }
 
 export default function Home() {
+  // Auth state
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [isAuthLoading, setIsAuthLoading] = useState(true);
+  const [isSigningIn, setIsSigningIn] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  const userMenuRef = useRef<HTMLDivElement | null>(null);
+
+  // Form input state
   const [url, setUrl] = useState('');
   const [isFetchingVideo, setIsFetchingVideo] = useState(false);
   const [metadata, setMetadata] = useState<VideoMetadata | null>(null);
   const [metaError, setMetaError] = useState<string | null>(null);
 
-  // Settings
+  // Download settings
   const [selectedQuality, setSelectedQuality] = useState<number | ''>('');
   const [startTime, setStartTime] = useState('');
   const [endTime, setEndTime] = useState('');
@@ -58,13 +75,33 @@ export default function Home() {
 
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Cleanup polling on unmount
+  // Subscribe to Firebase Auth state on mount
   useEffect(() => {
+    // Check mobile redirect result if any
+    checkRedirectResult().catch((err) => console.warn('Redirect check:', err));
+
+    const unsubscribe = onAuthStateChange((user) => {
+      setCurrentUser(user);
+      setIsAuthLoading(false);
+    });
+
     return () => {
+      unsubscribe();
       if (pollIntervalRef.current) {
         clearInterval(pollIntervalRef.current);
       }
     };
+  }, []);
+
+  // Close user dropdown on outside click
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
+        setIsUserMenuOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
   const formatFileSize = (bytes?: number) => {
@@ -74,7 +111,38 @@ export default function Home() {
     return `${(bytes / 1024).toFixed(1)} KB`;
   };
 
-  // Step 2 & 3: Fetch video metadata
+  // Google Sign-In handler
+  const handleGoogleSignIn = async (): Promise<User | null> => {
+    setIsSigningIn(true);
+    setAuthError(null);
+    try {
+      const user = await signInWithGoogle();
+      setCurrentUser(user);
+      return user;
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Google sign-in failed.';
+      if (msg !== 'REDIRECTING') {
+        setAuthError(msg);
+      }
+      return null;
+    } finally {
+      setIsSigningIn(false);
+    }
+  };
+
+  // Sign out handler
+  const handleSignOut = async () => {
+    try {
+      await signOutUser();
+      setCurrentUser(null);
+      setIsUserMenuOpen(false);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Sign-out failed.';
+      setAuthError(msg);
+    }
+  };
+
+  // Step 2 & 3: Fetch video metadata (Public endpoint)
   const handleFetchVideo = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
 
@@ -131,8 +199,12 @@ export default function Home() {
     }
   };
 
-  const triggerDownload = (jobId: string, customFileName?: string) => {
-    const downloadUrl = `/api/download/${jobId}`;
+  // Trigger authenticated download file
+  const triggerDownload = async (jobId: string, customFileName?: string) => {
+    const token = await getCurrentIdToken();
+    const tokenQuery = token ? `?token=${encodeURIComponent(token)}` : '';
+    const downloadUrl = `/api/download/${jobId}${tokenQuery}`;
+
     const anchor = document.createElement('a');
     anchor.href = downloadUrl;
     anchor.download = customFileName || `video_${jobId.substring(0, 8)}.mp4`;
@@ -141,16 +213,9 @@ export default function Home() {
     document.body.removeChild(anchor);
   };
 
-  // Step 7: Handle download submission
-  const handleStartDownload = async (e: React.FormEvent) => {
-    e.preventDefault();
-
+  // Start download execution with token
+  const executeDownloadWithUser = async (user: User) => {
     const trimmedUrl = url.trim();
-    if (!trimmedUrl) {
-      setErrorMessage('Please enter a video URL.');
-      return;
-    }
-
     const trimmedStart = startTime.trim();
     const trimmedEnd = endTime.trim();
 
@@ -172,9 +237,19 @@ export default function Home() {
     setCurrentStep('Validating video URL...');
 
     try {
+      // 1. Obtain Firebase ID token
+      const idToken = await user.getIdToken();
+      if (!idToken) {
+        throw new Error('Unable to obtain authentication token. Please sign in again.');
+      }
+
+      // 2. Call protected POST /api/process
       const response = await fetch('/api/process', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${idToken}`,
+        },
         body: JSON.stringify({
           url: trimmedUrl,
           quality: selectedQuality || undefined,
@@ -224,7 +299,7 @@ export default function Home() {
                 fileSize: statusData.fileSize,
               });
 
-              // Automatically trigger file download
+              // Automatically trigger authenticated file download
               triggerDownload(jobId, statusData.fileName);
             }, 600);
           } else if (statusData.status === 'failed') {
@@ -246,6 +321,29 @@ export default function Home() {
     }
   };
 
+  // Download button clicked: check auth first, sign in if needed, then download
+  const handleStartDownload = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!url.trim()) {
+      setErrorMessage('Please enter a video URL.');
+      return;
+    }
+
+    // If not authenticated, initiate Google Sign-In first
+    if (!currentUser) {
+      const user = await handleGoogleSignIn();
+      if (user) {
+        // Authenticated! Automatically proceed with existing configuration
+        await executeDownloadWithUser(user);
+      }
+      return;
+    }
+
+    // Authenticated: proceed
+    await executeDownloadWithUser(currentUser);
+  };
+
   const handleReset = () => {
     setIsProcessing(false);
     setDownloadReady(false);
@@ -258,11 +356,98 @@ export default function Home() {
   return (
     <div className="min-h-screen flex flex-col bg-white text-neutral-900 font-sans">
       {/* Header */}
-      <header className="border-b border-neutral-200 py-4 px-6 md:px-12 flex items-center justify-between">
+      <header className="border-b border-neutral-200 py-3.5 px-6 md:px-12 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <span className="text-xl font-bold tracking-tight text-black">ClipDown</span>
         </div>
-        <nav className="text-xs text-neutral-500 font-medium">Video Trimmer & Downloader</nav>
+
+        {/* Auth Section in Header */}
+        <div className="flex items-center gap-3">
+          {isAuthLoading ? (
+            <div className="w-8 h-8 rounded-full bg-neutral-100 animate-pulse"></div>
+          ) : currentUser ? (
+            // Authenticated: Show profile picture & dropdown menu
+            <div className="relative" ref={userMenuRef}>
+              <button
+                type="button"
+                onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
+                className="flex items-center gap-2 p-1 rounded-full hover:bg-neutral-100 transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-neutral-900"
+                aria-label="User menu"
+              >
+                {currentUser.photoURL ? (
+                  <img
+                    src={currentUser.photoURL}
+                    alt={currentUser.displayName || 'User profile'}
+                    className="w-8 h-8 rounded-full object-cover border border-neutral-300"
+                    referrerPolicy="no-referrer"
+                  />
+                ) : (
+                  <div className="w-8 h-8 rounded-full bg-neutral-900 text-white text-xs font-semibold flex items-center justify-center">
+                    {currentUser.displayName ? currentUser.displayName.charAt(0).toUpperCase() : 'U'}
+                  </div>
+                )}
+                <span className="hidden sm:inline text-xs font-medium text-neutral-800 max-w-[120px] truncate">
+                  {currentUser.displayName || currentUser.email || 'Account'}
+                </span>
+                <svg
+                  className={`w-3.5 h-3.5 text-neutral-500 transition-transform ${isUserMenuOpen ? 'rotate-180' : ''}`}
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+
+              {/* Dropdown Menu */}
+              {isUserMenuOpen && (
+                <div className="absolute right-0 mt-2 w-56 bg-white border border-neutral-200 rounded-lg shadow-sm py-2 z-50">
+                  <div className="px-4 py-2 border-b border-neutral-100">
+                    <p className="text-xs font-semibold text-neutral-900 truncate">
+                      {currentUser.displayName || 'Signed in'}
+                    </p>
+                    <p className="text-[11px] text-neutral-500 truncate mt-0.5">{currentUser.email}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleSignOut}
+                    className="w-full text-left px-4 py-2 text-xs text-red-600 hover:bg-neutral-50 transition-colors cursor-pointer"
+                  >
+                    Sign Out
+                  </button>
+                </div>
+              )}
+            </div>
+          ) : (
+            // Logged Out: Show Sign in with Google button
+            <button
+              type="button"
+              disabled={isSigningIn}
+              onClick={() => handleGoogleSignIn()}
+              className="flex items-center gap-2 px-3.5 py-1.5 border border-neutral-300 rounded-lg text-xs font-medium text-neutral-800 bg-white hover:bg-neutral-50 hover:border-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-900 transition-colors cursor-pointer disabled:opacity-50"
+            >
+              <svg className="w-4 h-4" viewBox="0 0 24 24">
+                <path
+                  fill="#4285F4"
+                  d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                />
+                <path
+                  fill="#34A853"
+                  d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                />
+                <path
+                  fill="#FBBC05"
+                  d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
+                />
+                <path
+                  fill="#EA4335"
+                  d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
+                />
+              </svg>
+              <span>{isSigningIn ? 'Signing in...' : 'Sign in with Google'}</span>
+            </button>
+          )}
+        </div>
       </header>
 
       {/* Main Section */}
@@ -277,6 +462,20 @@ export default function Home() {
               Paste a video link, select quality and preferred time range, or download the full video.
             </p>
           </div>
+
+          {/* Auth Error Banner if sign-in fails */}
+          {authError && (
+            <div className="p-3 border border-red-200 rounded-lg bg-red-50 text-red-700 text-xs flex items-center justify-between">
+              <span>{authError}</span>
+              <button
+                type="button"
+                onClick={() => setAuthError(null)}
+                className="underline hover:text-red-900 cursor-pointer ml-2 text-[11px]"
+              >
+                Dismiss
+              </button>
+            </div>
+          )}
 
           {/* Section A: Video URL */}
           <div className="space-y-2">
@@ -474,6 +673,28 @@ export default function Home() {
                       <span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
                       <span>{currentStep || 'Processing video...'}</span>
                     </>
+                  ) : !currentUser ? (
+                    <span className="flex items-center gap-2">
+                      <svg className="w-4 h-4" viewBox="0 0 24 24">
+                        <path
+                          fill="#4285F4"
+                          d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                        />
+                        <path
+                          fill="#34A853"
+                          d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                        />
+                        <path
+                          fill="#FBBC05"
+                          d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
+                        />
+                        <path
+                          fill="#EA4335"
+                          d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
+                        />
+                      </svg>
+                      <span>Sign in with Google & Download</span>
+                    </span>
                   ) : (
                     <span>Download Video</span>
                   )}

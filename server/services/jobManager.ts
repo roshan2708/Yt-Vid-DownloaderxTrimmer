@@ -30,6 +30,7 @@ class JobManager {
     endSeconds?: number;
     isFullVideo: boolean;
     selectedQuality?: number;
+    userId?: string;
   }): Job {
     const id = uuidv4();
     const job: Job = {
@@ -42,6 +43,7 @@ class JobManager {
       endSeconds: params.endSeconds,
       isFullVideo: params.isFullVideo,
       selectedQuality: params.selectedQuality,
+      userId: params.userId,
       status: 'queued',
       step: 'Queued for processing...',
       progress: 0,

@@ -8,13 +8,17 @@
     "start": "next start",
     "lint": "eslint",
     "server": "tsx server/index.ts",
-    "dev:all": "concurrently -n \"backend,frontend\" -c \"blue,green\" \"npm run server\" \"npm run dev\""
+    "start:backend": "IS_STANDALONE_BACKEND=true tsx server/index.ts",
+    "dev:all": "concurrently -n \"backend,frontend\" -c \"blue,green\" \"npm run server\" \"npm run dev\"",
+    "start:all": "concurrently -n \"backend,frontend\" -c \"blue,green\" \"npm run server\" \"next start -p ${PORT:-3000}\""
   },
   "dependencies": {
     "cors": "^2.8.6",
     "dotenv": "^18.0.9",
     "express": "^5.3.0",
     "express-rate-limit": "^8.7.2",
+    "firebase": "^13.1.0",
+    "firebase-admin": "^14.5.0",
     "next": "16.4.3",
     "react": "19.3.0",
     "react-dom": "19.3.0",

@@ -32,6 +32,7 @@ export interface Job {
   endSeconds?: number;
   isFullVideo: boolean;
   selectedQuality?: number; // height, e.g. 720, 1080
+  userId?: string;
   status: JobStatus;
   step: string;
   progress: number;
