@@ -1,36 +1,237 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# ClipDown – Minimal Video Trimming & Downloading Service
 
-## Getting Started
+ClipDown is a fast, minimal video trimming and downloading utility. Users paste a video URL, select a start and end time (`HH:MM:SS`), and download only that specific portion of the video as a clean MP4 file.
 
-First, run the development server:
+---
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+## 1. Architecture Overview
+
+ClipDown decouples frontend presentation and heavy video processing:
+
+```
+[ Frontend: Next.js + Tailwind CSS (Vercel) ]
+                      │
+                      │ HTTP / JSON API
+                      ▼
+[ Backend: Node.js Express + FFmpeg (Ubuntu VPS) ]
+        ├── /api/validate     (Inspects video metadata)
+        ├── /api/process      (Enqueues trim job)
+        ├── /api/status/:id   (Reports progress state)
+        └── /api/download/:id (Streams MP4 clip)
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+- **Frontend**: Next.js (App Router), TypeScript, Tailwind CSS. Clean, responsive single-page utility tool without gradients or unnecessary cards.
+- **Backend Service**: Standalone Express service handling FFmpeg keyframe trimming, yt-dlp section extraction, rate limiting, SSRF protection, and automatic temporary file cleanup.
+- **Proxy Routes**: Next.js route handlers (`app/api/*`) proxy requests to the dedicated backend service (`BACKEND_URL`), ensuring seamless deployment on Vercel without CORS or file size restrictions.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+---
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## 2. Tech Stack
 
-## Learn More
+- **Frontend**: Next.js 16 (App Router), React 19, TypeScript, Tailwind CSS 4
+- **Backend**: Node.js, Express, TypeScript, `express-rate-limit`, `cors`
+- **Video Processing**: FFmpeg & `yt-dlp` for frame-accurate extraction and encoding
+- **Storage**: Temporary disk storage with automatic cleanup every 5 minutes (files expire after 30 minutes)
 
-To learn more about Next.js, take a look at the following resources:
+---
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## 3. Installation & Local Development
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### Prerequisites
 
-## Deploy on Vercel
+Ensure the following tools are installed on your local machine:
+- **Node.js**: v18+ (v20+ recommended)
+- **FFmpeg & ffprobe**: `brew install ffmpeg` (macOS) or `sudo apt install ffmpeg` (Ubuntu)
+- **yt-dlp**: `brew install yt-dlp` (macOS) or standalone binary
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### Step 1: Install Dependencies
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```bash
+npm install
+```
+
+### Step 2: Configure Environment
+
+Copy `.env.example` to `.env`:
+
+```bash
+cp .env.example .env
+```
+
+Default configuration:
+```env
+PORT=4000
+NODE_ENV=development
+BACKEND_URL=http://127.0.0.1:4000
+```
+
+### Step 3: Run Development Servers
+
+Run both the backend processing server and frontend together:
+
+```bash
+npm run dev:all
+```
+
+Or run them individually in separate terminal tabs:
+- **Backend Server (port 4000)**:
+  ```bash
+  npm run server
+  ```
+- **Next.js Frontend (port 3000)**:
+  ```bash
+  npm run dev
+  ```
+
+Open [http://localhost:3000](http://localhost:3000) in your browser.
+
+---
+
+## 4. API Endpoints
+
+### 1. `POST /api/validate`
+Validates the submitted video URL and returns metadata.
+
+- **Request Body**:
+  ```json
+  { "url": "https://www.w3schools.com/html/mov_bbb.mp4" }
+  ```
+- **Response**:
+  ```json
+  {
+    "valid": true,
+    "url": "https://www.w3schools.com/html/mov_bbb.mp4",
+    "title": "mov_bbb",
+    "duration": 10,
+    "formattedDuration": "00:00:10",
+    "uploader": "generic",
+    "platform": "Generic"
+  }
+  ```
+
+### 2. `POST /api/process`
+Accepts video URL, start time, and end time. Initiates video trimming in the background and returns a unique job ID.
+
+- **Request Body**:
+  ```json
+  {
+    "url": "https://www.w3schools.com/html/mov_bbb.mp4",
+    "startTime": "00:00:01",
+    "endTime": "00:00:04"
+  }
+  ```
+- **Response**:
+  ```json
+  {
+    "jobId": "664efcbd-5a6c-48a3-9a35-6e38f54c23ae",
+    "status": "queued",
+    "step": "Validating video URL."
+  }
+  ```
+
+### 3. `GET /api/status/:jobId`
+Returns processing state, progress percentage, and error details if applicable.
+
+- **Response**:
+  ```json
+  {
+    "jobId": "664efcbd-5a6c-48a3-9a35-6e38f54c23ae",
+    "status": "completed",
+    "step": "Download completed.",
+    "progress": 100,
+    "error": null,
+    "fileName": "mov_bbb_664efcbd.mp4",
+    "fileSize": 169736
+  }
+  ```
+
+### 4. `GET /api/download/:jobId`
+Streams the generated MP4 file to the client with `Content-Disposition: attachment`.
+
+---
+
+## 5. Production Deployment
+
+### Frontend Deployment (Vercel)
+
+1. Push your repository to GitHub / GitLab.
+2. Import the project into [Vercel](https://vercel.com).
+3. In Project Settings -> **Environment Variables**, set:
+   ```env
+   BACKEND_URL=https://api.yourdomain.com
+   ```
+4. Deploy! Next.js will build and serve the single-page application globally, proxying processing requests to your Ubuntu VPS.
+
+---
+
+### Backend Deployment (Ubuntu 22.04 / 24.04 VPS)
+
+#### Step 1: Install System Dependencies
+
+You can run the provided automated script:
+```bash
+chmod +x deploy/install-vps.sh
+./deploy/install-vps.sh
+```
+
+Or manually install packages:
+```bash
+sudo apt update && sudo apt install -y ffmpeg python3 curl git nginx
+curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+sudo apt install -y nodejs
+
+# Install latest yt-dlp
+sudo curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp
+sudo chmod a+rx /usr/local/bin/yt-dlp
+```
+
+#### Step 2: Deploy Project Code
+
+```bash
+sudo mkdir -p /var/www/clipdown
+sudo chown -R $USER:$USER /var/www/clipdown
+git clone <your-repo-url> /var/www/clipdown
+cd /var/www/clipdown
+npm install
+```
+
+#### Step 3: Setup Systemd Service
+
+Copy the systemd unit file:
+```bash
+sudo cp deploy/clipdown-backend.service /etc/systemd/system/clipdown.service
+sudo systemctl daemon-reload
+sudo systemctl enable --now clipdown
+```
+
+Verify service is running:
+```bash
+sudo systemctl status clipdown
+curl http://127.0.0.1:4000/health
+```
+
+#### Step 4: Configure Nginx & SSL
+
+Copy the Nginx configuration:
+```bash
+sudo cp deploy/nginx.conf /etc/nginx/sites-available/clipdown
+sudo ln -s /etc/nginx/sites-available/clipdown /etc/nginx/sites-enabled/
+sudo nginx -t
+sudo systemctl reload nginx
+```
+
+Obtain a free SSL certificate with Let's Encrypt:
+```bash
+sudo apt install -y certbot python3-certbot-nginx
+sudo certbot --nginx -d api.yourdomain.com
+```
+
+---
+
+## 6. Security & Resource Safeguards
+
+- **SSRF Protection**: Private, loopback, and cloud metadata addresses (`127.0.0.1`, `10.0.0.0/8`, `192.168.0.0/16`, `169.254.169.254`) are rejected immediately.
+- **Authorized Sources**: Restricts downloading to authorized platforms (YouTube, Vimeo, Twitch, Reddit, X/Twitter, TikTok, Dailymotion, or direct video file extensions).
+- **Rate Limiting**: Integrated `express-rate-limit` prevents spamming processing jobs (max 20 trims per 10 minutes per IP).
+- **Disk Cleanup**: Background job manager cleans temporary files older than 30 minutes every 5 minutes to prevent storage exhaustion.
+# Yt-Vid-DownloaderxTrimmer
