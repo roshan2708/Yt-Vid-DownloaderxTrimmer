@@ -287,7 +287,7 @@ export default function PricingPage() {
             <div className="border-b border-neutral-100 pb-4">
               <h3 className="text-sm font-semibold text-neutral-900">What is your cancellation and refund policy?</h3>
               <p className="text-xs text-neutral-600 mt-1.5 leading-relaxed">
-                You can cancel your subscription at any time with zero lock-in or cancellation fees. We also provide a <strong>7-day money-back guarantee</strong> for first-time Creator Pro and Studio subscribers. For complete details, see our{' '}
+                All digital sales and subscriptions are final and non-refundable. We provide a <strong>free Starter plan (3 trims/day)</strong> so you can test features thoroughly before upgrading. You can cancel your recurring subscription at any time with zero penalties, retaining full access until the end of your billing cycle. For complete details, see our{' '}
                 <Link href="/refunds" className="text-neutral-900 underline font-medium hover:text-black">
                   Refunds &amp; Cancellations Policy
                 </Link>.

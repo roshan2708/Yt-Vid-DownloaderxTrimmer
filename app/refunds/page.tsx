@@ -6,7 +6,7 @@ import Footer from '@/src/components/Footer';
 export const metadata: Metadata = {
   title: 'Refunds & Cancellations Policy | ClipDown',
   description:
-    'Read ClipDown’s comprehensive refund and cancellation policy, including our 7-day money-back guarantee, subscription cancellation terms, and refund processing timelines.',
+    'Read ClipDown’s policy regarding cancellations, no-refunds on digital services, subscription management, and automatic quota restoration.',
 };
 
 export default function RefundsAndCancellationsPage() {
@@ -42,17 +42,17 @@ export default function RefundsAndCancellationsPage() {
           {/* Quick Summary Highlights Box */}
           <div className="mb-10 p-5 sm:p-6 rounded-2xl border border-neutral-200 bg-neutral-50 space-y-4">
             <h2 className="text-sm font-bold text-neutral-900 uppercase tracking-wider text-[11px]">
-              Key Policy Highlights at a Glance
+              Key Policy Highlights
             </h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs text-neutral-700">
               <div className="flex items-start gap-2.5">
-                <div className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold flex-shrink-0 text-[10px]">
-                  ✓
+                <div className="w-5 h-5 rounded-full bg-neutral-200 text-neutral-800 flex items-center justify-center font-bold flex-shrink-0 text-[10px]">
+                  !
                 </div>
                 <div>
-                  <p className="font-semibold text-neutral-900">7-Day Money-Back Guarantee</p>
+                  <p className="font-semibold text-neutral-900">No Refunds on Digital Purchases</p>
                   <p className="text-neutral-600 mt-0.5">
-                    Full refund on your first Creator Pro or Studio subscription if requested within 7 days.
+                    All sales, subscriptions, and add-on credits are final and non-refundable. Please use our Free Tier to test features prior to upgrading.
                   </p>
                 </div>
               </div>
@@ -64,7 +64,7 @@ export default function RefundsAndCancellationsPage() {
                 <div>
                   <p className="font-semibold text-neutral-900">Cancel Anytime</p>
                   <p className="text-neutral-600 mt-0.5">
-                    Zero lock-in or cancellation fees. Retain paid plan features until your billing cycle ends.
+                    Cancel future subscription renewals anytime with zero fees. Retain paid plan features until your active billing cycle ends.
                   </p>
                 </div>
               </div>
@@ -76,7 +76,7 @@ export default function RefundsAndCancellationsPage() {
                 <div>
                   <p className="font-semibold text-neutral-900">Automatic Quota Protection</p>
                   <p className="text-neutral-600 mt-0.5">
-                    If an export fails due to server or network issues, your trim quota is immediately restored automatically.
+                    If an export fails due to server or processing errors, your trim quota is immediately restored to your balance automatically.
                   </p>
                 </div>
               </div>
@@ -86,9 +86,9 @@ export default function RefundsAndCancellationsPage() {
                   ✓
                 </div>
                 <div>
-                  <p className="font-semibold text-neutral-900">5–7 Business Days Payout</p>
+                  <p className="font-semibold text-neutral-900">Duplicate Billing Resolution</p>
                   <p className="text-neutral-600 mt-0.5">
-                    Approved refunds are disbursed straight back to your original payment method (UPI, Card, Net Banking).
+                    Any accidental duplicate transaction caused by payment gateway timeouts is promptly refunded 100% to your original payment method.
                   </p>
                 </div>
               </div>
@@ -100,39 +100,39 @@ export default function RefundsAndCancellationsPage() {
             {/* Section 1 */}
             <section className="space-y-3">
               <h2 className="text-xl font-bold text-neutral-900 tracking-tight">
-                1. Overview &amp; Scope
+                1. Overview &amp; Nature of Service
               </h2>
               <p>
-                At ClipDown (&quot;we&quot;, &quot;us&quot;, or &quot;our&quot;), customer satisfaction and complete transparency in our billing practices are our top priorities. This Refunds &amp; Cancellations Policy outlines the terms and conditions under which you may cancel your paid subscriptions, purchase add-ons, or request monetary refunds.
+                ClipDown (&quot;we&quot;, &quot;us&quot;, or &quot;our&quot;) provides high-speed cloud video downloading, cutting, and transcoding services. When you subscribe to a paid tier or purchase an add-on, server compute resources, high-capacity bandwidth, and specialized cloud workers are allocated instantly to your account.
               </p>
               <p>
-                This policy applies to all paid plans and add-on purchases made on the ClipDown platform, including the <strong>Creator Pro Plan</strong> (₹199/month or ₹1,999/year), the <strong>Studio Power Plan</strong> (₹499/month or ₹4,999/year), the <strong>24-Hour Pass</strong> (₹49), and <strong>Bonus Trim Credits</strong> (₹99).
+                To provide transparent billing and clear expectations, this Refunds &amp; Cancellations Policy outlines our cancellation procedures, our strict non-refundable terms for digital services, and our automated quota recovery mechanisms.
               </p>
             </section>
 
             {/* Section 2 */}
             <section className="space-y-3">
               <h2 className="text-xl font-bold text-neutral-900 tracking-tight">
-                2. Subscription Cancellation Policy
+                2. No-Refund Policy
               </h2>
               <p>
-                You have full control over your ClipDown subscription and can cancel at any time without having to contact customer support or pay any cancellation fees:
+                <strong className="text-neutral-900">All purchases and subscription payments made on ClipDown are strictly final and non-refundable.</strong>
+              </p>
+              <p>
+                Because ClipDown delivers intangible digital goods and instant server bandwidth:
               </p>
               <ul className="list-disc pl-5 space-y-2 text-neutral-600">
                 <li>
-                  <strong className="text-neutral-900">Self-Service Cancellation:</strong> You can cancel your active monthly or yearly subscription at any time through your account billing panel or by submitting a cancellation request to{' '}
-                  <a href="mailto:billing@clipdown.app" className="text-neutral-900 underline font-medium">
-                    billing@clipdown.app
-                  </a>.
+                  <strong className="text-neutral-900">Free Tier for Evaluation:</strong> We provide a free Starter plan offering <strong>3 free trims per day</strong> with full access to test our platform&apos;s capabilities, speed, and audio/video output quality. We strongly encourage all users to thoroughly evaluate the service using the free tier before purchasing any paid plan.
                 </li>
                 <li>
-                  <strong className="text-neutral-900">Effective Date of Cancellation:</strong> When you cancel a subscription, your cancellation becomes effective at the end of the current billing cycle (the remainder of your paid month or year). We do not charge any further renewal fees.
+                  <strong className="text-neutral-900">Instant Delivery:</strong> Paid benefits (including 200–500 monthly trims, 4K/60fps quality options, 60-minute duration limits, and priority worker queues) are provisioned immediately upon transaction completion.
                 </li>
                 <li>
-                  <strong className="text-neutral-900">Access Retention:</strong> You will continue to have full access to all tier benefits (such as 4K UHD exports, increased video duration limits, and your monthly trim quota) until the current billing cycle concludes.
+                  <strong className="text-neutral-900">No Partial or Prorated Refunds:</strong> We do not offer partial, prorated, or full monetary refunds for unused trim quotas, partially used billing periods, downgrades, or early cancellations.
                 </li>
                 <li>
-                  <strong className="text-neutral-900">Graceful Downgrade:</strong> Once your billing period ends, your account will automatically revert to the Free Starter plan (3 trims/day at 720p HD). None of your account credentials or past download logs are deleted.
+                  <strong className="text-neutral-900">Add-On Purchases:</strong> One-time purchases, including the <strong>24-Hour Pass (₹49)</strong> and <strong>50 Bonus Trim Credits (₹99)</strong>, are strictly non-refundable once acquired.
                 </li>
               </ul>
             </section>
@@ -140,66 +140,44 @@ export default function RefundsAndCancellationsPage() {
             {/* Section 3 */}
             <section className="space-y-3">
               <h2 className="text-xl font-bold text-neutral-900 tracking-tight">
-                3. Refund Eligibility &amp; Money-Back Guarantee
+                3. Subscription Cancellation Policy
               </h2>
               <p>
-                We want you to feel confident when subscribing to ClipDown. We offer fair, transparent refund terms based on the type of plan and usage:
+                While payments are non-refundable, you maintain full control over your subscription and can cancel future automatic renewals at any time:
               </p>
-
-              <div className="space-y-4 pt-2">
-                <div className="p-4 rounded-xl border border-neutral-200 bg-white space-y-1.5">
-                  <h3 className="font-semibold text-neutral-900 text-sm">
-                    A. 7-Day Money-Back Guarantee (First-Time Subscriptions)
-                  </h3>
-                  <p className="text-xs text-neutral-600 leading-relaxed">
-                    If you are trying Creator Pro or Studio Power for the first time and are not completely satisfied with our service, you are eligible for a <strong>100% full refund</strong> if requested within <strong>7 calendar days</strong> from your initial purchase date, provided you have processed fewer than 15 video trims during this period.
-                  </p>
-                </div>
-
-                <div className="p-4 rounded-xl border border-neutral-200 bg-white space-y-1.5">
-                  <h3 className="font-semibold text-neutral-900 text-sm">
-                    B. Annual (Yearly) Subscriptions
-                  </h3>
-                  <p className="text-xs text-neutral-600 leading-relaxed">
-                    For yearly plans (billed upfront for 12 months), you may request a full refund within <strong>14 calendar days</strong> of initial subscription or renewal. If requested after 14 days due to demonstrated service disruption, we may offer a prorated refund reflecting the remaining full unused months.
-                  </p>
-                </div>
-
-                <div className="p-4 rounded-xl border border-neutral-200 bg-white space-y-1.5">
-                  <h3 className="font-semibold text-neutral-900 text-sm">
-                    C. Technical Failures &amp; Service Unavailability
-                  </h3>
-                  <p className="text-xs text-neutral-600 leading-relaxed">
-                    If technical issues on our platform prevent you from trimming or downloading standard publicly available videos, and our support team cannot rectify the issue within 48 hours of notification, you are entitled to a full refund for that billing period regardless of how many days have elapsed.
-                  </p>
-                </div>
-
-                <div className="p-4 rounded-xl border border-neutral-200 bg-white space-y-1.5">
-                  <h3 className="font-semibold text-neutral-900 text-sm">
-                    D. 24-Hour Passes &amp; Bonus Top-Up Credits
-                  </h3>
-                  <p className="text-xs text-neutral-600 leading-relaxed">
-                    • <strong>24-Hour Pass (₹49):</strong> Refundable if no trims were processed and the request is made within 24 hours of purchase, or if confirmed server downtime prevented use.<br />
-                    • <strong>50 Bonus Credits (₹99):</strong> Refundable within 7 days of purchase if 100% of the purchased credits remain unspent.
-                  </p>
-                </div>
-              </div>
+              <ul className="list-disc pl-5 space-y-2 text-neutral-600">
+                <li>
+                  <strong className="text-neutral-900">Cancel Anytime Without Penalty:</strong> You can cancel your subscription at any time with zero cancellation fees or lock-in penalties through your account billing panel or by writing to{' '}
+                  <a href="mailto:billing@clipdown.app" className="text-neutral-900 underline font-medium">
+                    billing@clipdown.app
+                  </a>.
+                </li>
+                <li>
+                  <strong className="text-neutral-900">Immediate Stop to Auto-Renewal:</strong> Upon cancellation, all future automated renewals and recurring charges are immediately terminated. No further charges will occur on your card, UPI mandate, or payment account.
+                </li>
+                <li>
+                  <strong className="text-neutral-900">Continued Access Through Current Cycle:</strong> You will retain complete access to all paid plan features and your allocated trim quota until the current paid billing cycle (the remainder of your month or year) naturally concludes.
+                </li>
+                <li>
+                  <strong className="text-neutral-900">Automatic Reversion to Free Tier:</strong> When your current billing cycle expires after cancellation, your account will smoothly revert to the standard Free Starter tier (3 trims/day).
+                </li>
+              </ul>
             </section>
 
             {/* Section 4 */}
             <section className="space-y-3">
               <h2 className="text-xl font-bold text-neutral-900 tracking-tight">
-                4. Automated Quota Restoration vs. Monetary Refunds
+                4. Automated Quota Protection (Never Lose Trims)
               </h2>
               <p>
-                It is important to distinguish between <em>quota restorations</em> and <em>monetary refunds</em>:
+                Even though financial payments are non-refundable, <strong className="text-neutral-900">you will never be penalized for platform or technical failures</strong>:
               </p>
               <div className="p-4 rounded-xl bg-neutral-50 border border-neutral-200 text-xs space-y-2">
-                <p>
-                  <strong className="text-neutral-900">Real-Time Quota Refund:</strong> Our server architecture contains an automated rollback mechanism. If an FFmpeg conversion fails, a YouTube download stream breaks, or our processing queue encounters a timeout, your account quota (whether daily, monthly, or bonus credit) is <strong>instantly and automatically refunded back to your balance</strong>. You do not need to contact support to recover a trim wasted on a broken job.
+                <p className="font-semibold text-neutral-900">
+                  Instant Automatic Quota Restoration:
                 </p>
-                <p>
-                  <strong className="text-neutral-900">Monetary Refund:</strong> Refers to returning the actual funds paid (INR ₹) back to your original payment method. Monetary refund requests are reviewed and processed by our billing team.
+                <p className="text-neutral-600 leading-relaxed">
+                  Our backend incorporates automated transactional safeguards. If a video trim fails to complete due to YouTube stream interruptions, server timeouts, transcode crashes, or processing errors, <strong className="text-neutral-900">your trim quota is automatically restored back to your account immediately</strong>. You do not need to contact customer support or file a ticket to recover a trim lost on an unfulfilled job.
                 </p>
               </div>
             </section>
@@ -207,124 +185,58 @@ export default function RefundsAndCancellationsPage() {
             {/* Section 5 */}
             <section className="space-y-3">
               <h2 className="text-xl font-bold text-neutral-900 tracking-tight">
-                5. Non-Refundable Circumstances
+                5. Accidental Duplicate Transactions
               </h2>
               <p>
-                We do not issue refunds under the following conditions:
+                The sole exception to our no-refund policy is in the event of an accidental duplicate transaction:
               </p>
-              <ul className="list-disc pl-5 space-y-2 text-neutral-600">
-                <li>
-                  <strong className="text-neutral-900">Terms of Service Violations:</strong> Accounts suspended or terminated for violating our{' '}
-                  <Link href="/terms" className="text-neutral-900 underline font-medium">
-                    Terms &amp; Conditions
-                  </Link>{' '}
-                  (including automated scraping, attempts to bypass DRM, or abuse of platform bandwidth) are not eligible for any refund.
-                </li>
-                <li>
-                  <strong className="text-neutral-900">Substantial Quota Consumption:</strong> Requests made after consuming more than 15 trims on the Pro/Studio plan, or where a user attempts to consume a large volume of exports before requesting a refund.
-                </li>
-                <li>
-                  <strong className="text-neutral-900">Third-Party Platform Limitations:</strong> Inability to download content that is DRM-protected (e.g. Netflix, Disney+, Amazon Prime), geo-blocked by the source host, or requires personal account authentication on private channels. ClipDown only supports standard, publicly available web videos.
-                </li>
-                <li>
-                  <strong className="text-neutral-900">Expired Guarantee Periods:</strong> Requests submitted outside of the applicable 7-day or 14-day refund windows where no verified technical failure on ClipDown&apos;s infrastructure was reported.
-                </li>
-              </ul>
+              <p className="text-neutral-600 leading-relaxed">
+                If an error with your payment provider, internet interruption, or browser double-click resulted in multiple identical charges for the same billing cycle or item, please notify us within <strong>7 days</strong> with your transaction IDs. Once verified, <strong className="text-neutral-900">100% of the duplicate payment</strong> will be refunded directly to your original payment method (settling within 5 to 7 business days via standard banking timelines).
+              </p>
             </section>
 
             {/* Section 6 */}
             <section className="space-y-3">
               <h2 className="text-xl font-bold text-neutral-900 tracking-tight">
-                6. Refund Processing &amp; Disbursement Timelines
+                6. Supported Content &amp; Fair Use
               </h2>
               <p>
-                Once your refund request is received and approved by our support staff:
+                ClipDown is intended solely for public, unencrypted, and accessible online video content for personal, research, or fair-use workflows.
               </p>
-              <ul className="list-disc pl-5 space-y-2 text-neutral-600">
-                <li>
-                  <strong className="text-neutral-900">Internal Authorization:</strong> Our team reviews and initiates approved refunds within <strong>24 to 48 business hours</strong>.
-                </li>
-                <li>
-                  <strong className="text-neutral-900">Disbursement Method:</strong> Refunds are sent strictly to the <strong>original payment method</strong> used during checkout (such as UPI, Debit Card, Credit Card, Net Banking, or supported digital wallets). For security and anti-fraud compliance, we cannot transfer refunds to third-party accounts.
-                </li>
-                <li>
-                  <strong className="text-neutral-900">Bank Settlement Timelines:</strong>
-                  <ul className="list-circle pl-6 mt-1 space-y-1 text-xs">
-                    <li>• <strong>UPI (Google Pay, PhonePe, Paytm, BHIM):</strong> 2 to 4 business days.</li>
-                    <li>• <strong>Indian Debit &amp; Credit Cards (RuPay, Visa, Mastercard):</strong> 5 to 7 business days.</li>
-                    <li>• <strong>Net Banking:</strong> 3 to 7 business days depending on your bank.</li>
-                    <li>• <strong>International Cards:</strong> 7 to 10 business days depending on exchange clearing networks.</li>
-                  </ul>
-                </li>
-              </ul>
+              <p className="text-neutral-600 leading-relaxed">
+                We do not support or decrypt DRM-protected media (e.g. Netflix, Amazon Prime, Disney+, Apple TV+), age-gated media requiring private logins, or private streams. Inability to extract content from unsupported, protected, or restricted sources does not constitute grounds for a refund.
+              </p>
             </section>
 
             {/* Section 7 */}
             <section className="space-y-3">
               <h2 className="text-xl font-bold text-neutral-900 tracking-tight">
-                7. Accidental Duplicate Transactions
+                7. Billing Inquiries &amp; Support
               </h2>
               <p>
-                If you were billed twice for the same billing cycle due to a network timeout, browser refresh, or payment gateway glitch, please notify us immediately. Upon verification, we will refund <strong>100% of the duplicate transaction</strong> within 24 hours without any administrative deductions.
-              </p>
-            </section>
-
-            {/* Section 8 */}
-            <section className="space-y-3">
-              <h2 className="text-xl font-bold text-neutral-900 tracking-tight">
-                8. How to Submit a Refund or Cancellation Request
-              </h2>
-              <p>
-                To request a refund or cancel your subscription, please use either of the following channels:
+                If you have questions about your billing history, wish to cancel your subscription, or require assistance with your account, our support team is available:
               </p>
               <div className="p-5 rounded-2xl border border-neutral-200 bg-neutral-50 space-y-3 text-xs">
                 <p className="font-semibold text-neutral-900">
-                  Option 1: Contact via Email
+                  Support Contact Channels
                 </p>
                 <p className="text-neutral-600">
-                  Send an email to{' '}
+                  Email us at{' '}
                   <a href="mailto:billing@clipdown.app" className="font-semibold text-neutral-900 underline">
                     billing@clipdown.app
                   </a>{' '}
                   or{' '}
                   <a href="mailto:support@clipdown.app" className="font-semibold text-neutral-900 underline">
                     support@clipdown.app
-                  </a>{' '}
-                  with the subject line: <code className="bg-white px-1.5 py-0.5 rounded border border-neutral-200">Refund Request - [Your Registered Email]</code>.
+                  </a>.
                 </p>
                 <p className="text-neutral-600">
-                  Please include your order / payment transaction ID, purchase date, and a brief explanation of the reason for the request.
+                  You can also submit a message via our{' '}
+                  <Link href="/contact" className="text-neutral-900 underline font-medium">
+                    online Contact &amp; Support form
+                  </Link>. We respond to all inquiries within 24 to 48 hours.
                 </p>
-
-                <div className="pt-2 border-t border-neutral-200">
-                  <p className="font-semibold text-neutral-900 mb-1">
-                    Option 2: Use the Support Form
-                  </p>
-                  <p className="text-neutral-600 mb-2">
-                    Submit your request directly through our online contact form by selecting the &quot;Billing &amp; Payments&quot; topic:
-                  </p>
-                  <Link
-                    href="/contact"
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-neutral-900 text-white font-medium hover:bg-neutral-800 transition-colors"
-                  >
-                    <span>Open Contact &amp; Support Form</span>
-                    <span>→</span>
-                  </Link>
-                </div>
               </div>
-            </section>
-
-            {/* Section 9 */}
-            <section className="space-y-3">
-              <h2 className="text-xl font-bold text-neutral-900 tracking-tight">
-                9. Questions &amp; Support
-              </h2>
-              <p>
-                If you have any questions regarding this policy or need clarification on your billing status, please reach out to our team at{' '}
-                <a href="mailto:support@clipdown.app" className="text-neutral-900 underline font-medium">
-                  support@clipdown.app
-                </a>. We strive to respond to all inquiries within 24 to 48 hours.
-              </p>
             </section>
           </div>
         </article>

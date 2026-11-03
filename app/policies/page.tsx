@@ -104,13 +104,13 @@ export default function PoliciesPage() {
                 </div>
                 <h2 className="text-lg font-bold text-neutral-900">Refunds &amp; Cancellations</h2>
                 <p className="text-xs text-neutral-600 leading-relaxed">
-                  Understand your billing rights, our 7-day money-back guarantee, hassle-free subscription cancellation, and automatic quota restoration rules.
+                  Understand our digital service billing terms, no-refund policy, zero-penalty subscription cancellation, and automated quota restorations.
                 </p>
                 <ul className="text-xs text-neutral-500 space-y-1 pt-1">
-                  <li>• 7-day money-back guarantee</li>
+                  <li>• Transparent no-refund digital policy</li>
                   <li>• Cancel subscriptions anytime</li>
                   <li>• Automatic quota refund on job failures</li>
-                  <li>• 5–7 business days disbursement</li>
+                  <li>• Duplicate transaction protection</li>
                 </ul>
               </div>
               <div className="pt-4 border-t border-neutral-100">
