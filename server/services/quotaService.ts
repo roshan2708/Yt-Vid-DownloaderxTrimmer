@@ -102,7 +102,7 @@ export class QuotaService {
           this.localCache.set(k, v);
         }
       } catch (err) {
-        console.warn('[ClipDown Quota] Could not load local quota file:', err);
+        console.warn('[Cut Tadaao Quota] Could not load local quota file:', err);
       }
     }
   }
@@ -115,7 +115,7 @@ export class QuotaService {
       }
       fs.writeFileSync(LOCAL_QUOTA_FILE, JSON.stringify(obj, null, 2), 'utf-8');
     } catch (err) {
-      console.warn('[ClipDown Quota] Could not write local quota file:', err);
+      console.warn('[Cut Tadaao Quota] Could not write local quota file:', err);
     }
   }
 
@@ -186,7 +186,7 @@ export class QuotaService {
         }
       } catch (err) {
         if (this.firestoreOperational) {
-          console.warn('[ClipDown Quota] Firestore unavailable, using persistent local store:', (err as Error).message);
+          console.warn('[Cut Tadaao Quota] Firestore unavailable, using persistent local store:', (err as Error).message);
           this.firestoreOperational = false;
         }
       }
@@ -233,7 +233,7 @@ export class QuotaService {
         await firestore.collection('users').doc(record.userId).set(record, { merge: true });
       } catch (err) {
         if (this.firestoreOperational) {
-          console.warn('[ClipDown Quota] Firestore write failed, stored locally:', (err as Error).message);
+          console.warn('[Cut Tadaao Quota] Firestore write failed, stored locally:', (err as Error).message);
           this.firestoreOperational = false;
         }
       }
@@ -435,10 +435,10 @@ export class QuotaService {
         await this.writeUserRecord(record);
 
         console.log(
-          `[ClipDown Quota] Successfully refunded 1 ${consumedFrom} trim to user ${userId}.`
+          `[Cut Tadaao Quota] Successfully refunded 1 ${consumedFrom} trim to user ${userId}.`
         );
       } catch (err) {
-        console.error(`[ClipDown Quota] Error refunding quota for user ${userId}:`, err);
+        console.error(`[Cut Tadaao Quota] Error refunding quota for user ${userId}:`, err);
       }
     });
   }

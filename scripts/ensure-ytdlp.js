@@ -53,11 +53,11 @@ async function ensureBinaries() {
     if (process.platform !== 'win32') {
       try { fs.chmodSync(ytdlpPath, 0o755); } catch {}
     }
-    console.log(`[ClipDown] yt-dlp is ready at ${ytdlpPath}`);
+    console.log(`[Cut Tadaao] yt-dlp is ready at ${ytdlpPath}`);
   } else if (isCommandAvailable('yt-dlp')) {
-    console.log('[ClipDown] System yt-dlp is available.');
+    console.log('[Cut Tadaao] System yt-dlp is available.');
   } else {
-    console.log('[ClipDown] Downloading standalone yt-dlp binary...');
+    console.log('[Cut Tadaao] Downloading standalone yt-dlp binary...');
     let downloadUrl = 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp';
     if (process.platform === 'win32') {
       downloadUrl = 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe';
@@ -72,9 +72,9 @@ async function ensureBinaries() {
       if (process.platform !== 'win32') {
         fs.chmodSync(ytdlpPath, 0o755);
       }
-      console.log(`[ClipDown] Successfully installed yt-dlp to ${ytdlpPath}`);
+      console.log(`[Cut Tadaao] Successfully installed yt-dlp to ${ytdlpPath}`);
     } catch (err) {
-      console.warn('[ClipDown] Failed to download standalone yt-dlp:', err.message);
+      console.warn('[Cut Tadaao] Failed to download standalone yt-dlp:', err.message);
       // Fallback to generic zipapp yt-dlp
       if (downloadUrl !== 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp') {
         try {
@@ -83,7 +83,7 @@ async function ensureBinaries() {
             fs.chmodSync(ytdlpPath, 0o755);
           }
         } catch (e) {
-          console.warn('[ClipDown] Fallback download failed:', e.message);
+          console.warn('[Cut Tadaao] Fallback download failed:', e.message);
         }
       }
     }
@@ -91,7 +91,7 @@ async function ensureBinaries() {
 
   // 2. Ensure ffmpeg & ffprobe on Linux if missing
   if (!isCommandAvailable('ffmpeg') && !fs.existsSync(ffmpegPath) && process.platform === 'linux') {
-    console.log('[ClipDown] ffmpeg not found on system. Installing static ffmpeg binary for Linux...');
+    console.log('[Cut Tadaao] ffmpeg not found on system. Installing static ffmpeg binary for Linux...');
     try {
       const zlib = require('zlib');
       // Use ffbinaries static builds
@@ -106,14 +106,14 @@ async function ensureBinaries() {
         execSync(`python3 -m zipfile -e "${zipPath}" "${binDir}" && chmod 755 "${ffmpegPath}"`, { stdio: 'ignore' });
       }
       fs.unlinkSync(zipPath);
-      console.log('[ClipDown] Successfully installed static ffmpeg.');
+      console.log('[Cut Tadaao] Successfully installed static ffmpeg.');
     } catch (e) {
-      console.warn('[ClipDown] Could not download static ffmpeg:', e.message);
+      console.warn('[Cut Tadaao] Could not download static ffmpeg:', e.message);
     }
   }
 
   if (!isCommandAvailable('ffprobe') && !fs.existsSync(ffprobePath) && process.platform === 'linux') {
-    console.log('[ClipDown] ffprobe not found on system. Installing static ffprobe binary for Linux...');
+    console.log('[Cut Tadaao] ffprobe not found on system. Installing static ffprobe binary for Linux...');
     try {
       const ffprobeUrl = 'https://github.com/ffbinaries/ffbinaries-prebuilt/releases/download/v6.1/ffprobe-6.1-linux-64.zip';
       const zipPath = path.join(binDir, 'ffprobe.zip');
@@ -124,9 +124,9 @@ async function ensureBinaries() {
         execSync(`python3 -m zipfile -e "${zipPath}" "${binDir}" && chmod 755 "${ffprobePath}"`, { stdio: 'ignore' });
       }
       fs.unlinkSync(zipPath);
-      console.log('[ClipDown] Successfully installed static ffprobe.');
+      console.log('[Cut Tadaao] Successfully installed static ffprobe.');
     } catch (e) {
-      console.warn('[ClipDown] Could not download static ffprobe:', e.message);
+      console.warn('[Cut Tadaao] Could not download static ffprobe:', e.message);
     }
   }
 }

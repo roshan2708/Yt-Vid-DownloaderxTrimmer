@@ -1,5 +1,5 @@
 # ==============================================================
-# ClipDown – Production Dockerfile
+# Cut Tadaao – Production Dockerfile
 # ==============================================================
 
 FROM node:22-bookworm-slim

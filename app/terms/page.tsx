@@ -4,8 +4,8 @@ import Navbar from '@/src/components/Navbar';
 import Footer from '@/src/components/Footer';
 
 export const metadata: Metadata = {
-  title: 'Terms & Conditions | ClipDown',
-  description: 'Review the terms, acceptable use policy, copyright compliance, and legal guidelines for using ClipDown.',
+  title: 'Terms & Conditions | Cut Tadaao',
+  description: 'Review the terms, acceptable use policy, copyright compliance, and legal guidelines for using Cut Tadaao.',
 };
 
 export default function TermsAndConditionsPage() {
@@ -45,7 +45,7 @@ export default function TermsAndConditionsPage() {
                 1. Acceptance of Terms
               </h2>
               <p>
-                Welcome to ClipDown. By accessing, browsing, or utilizing the ClipDown web application, API, or associated services (collectively, the &quot;Service&quot;), you acknowledge that you have read, understood, and agree to be bound by these Terms &amp; Conditions (&quot;Terms&quot;), our{' '}
+                Welcome to Cut Tadaao. By accessing, browsing, or utilizing the Cut Tadaao web application, API, or associated services (collectively, the &quot;Service&quot;), you acknowledge that you have read, understood, and agree to be bound by these Terms &amp; Conditions (&quot;Terms&quot;), our{' '}
                 <Link href="/privacy" className="text-neutral-900 underline hover:text-black font-medium">
                   Privacy Policy
                 </Link>
@@ -64,10 +64,10 @@ export default function TermsAndConditionsPage() {
                 2. Nature &amp; Scope of Service
               </h2>
               <p>
-                ClipDown is a technical utility that assists users in retrieving and clipping user-specified, publicly accessible video streams for personal convenience, educational, research, critique, or fair-use purposes.
+                Cut Tadaao is a technical utility that assists users in retrieving and clipping user-specified, publicly accessible video streams for personal convenience, educational, research, critique, or fair-use purposes.
               </p>
               <p>
-                ClipDown does not host a video sharing platform, does not broadcast or license media content, and does not maintain public search indices of downloaded files. The Service functions as an automated tool executing operations specifically requested by authenticated users.
+                Cut Tadaao does not host a video sharing platform, does not broadcast or license media content, and does not maintain public search indices of downloaded files. The Service functions as an automated tool executing operations specifically requested by authenticated users.
               </p>
             </section>
 
@@ -76,19 +76,19 @@ export default function TermsAndConditionsPage() {
                 3. Intellectual Property Rights &amp; Copyright Policy
               </h2>
               <p>
-                ClipDown respects the intellectual property rights of creators and content owners worldwide.
+                Cut Tadaao respects the intellectual property rights of creators and content owners worldwide.
               </p>
               <div className="border-l-4 border-neutral-900 pl-4 py-1 my-3 bg-neutral-50 rounded-r-lg space-y-2">
                 <p className="font-semibold text-neutral-900">Your Representations and Warranties:</p>
                 <p className="text-xs text-neutral-600">
-                  By submitting any URL to ClipDown, you represent and warrant that you either:
+                  By submitting any URL to Cut Tadaao, you represent and warrant that you either:
                   (i) are the sole copyright owner of the content;
                   (ii) hold express written authorization or a license from the copyright holder to clip and download the content; or
                   (iii) your use qualifies under legally established fair use or fair dealing doctrines applicable under relevant copyright statutes (e.g., Title 17, Section 107 of the U.S. Copyright Act).
                 </p>
               </div>
               <p>
-                You explicitly agree not to use ClipDown to infringe, distribute, copy, broadcast, or republish protected media in violation of copyright or licensing agreements.
+                You explicitly agree not to use Cut Tadaao to infringe, distribute, copy, broadcast, or republish protected media in violation of copyright or licensing agreements.
               </p>
             </section>
 
@@ -96,14 +96,14 @@ export default function TermsAndConditionsPage() {
               <h2 className="text-xl font-bold text-neutral-900 tracking-tight">
                 4. Prohibited Uses &amp; Conduct
               </h2>
-              <p>When using ClipDown, you agree that you will not:</p>
+              <p>When using Cut Tadaao, you agree that you will not:</p>
               <ul className="list-disc pl-5 space-y-1 text-neutral-700">
                 <li>Attempt to bypass or crack digital rights management (DRM), encryption, or copy protection technologies.</li>
                 <li>Download content containing harmful, violent, abusive, defamatory, or unlawful material.</li>
                 <li>Deploy automated bots, scripts, crawlers, or high-concurrency loops designed to overload our servers or bypass rate limit controls.</li>
                 <li>Interfere with, disrupt, or compromise the security or integrity of our servers, networks, or connected endpoints.</li>
                 <li>Attempt to reverse engineer, decompile, or tamper with the underlying software components.</li>
-                <li>Resell, sublicense, or commercially exploit ClipDown as a paid third-party proxy without prior written agreement.</li>
+                <li>Resell, sublicense, or commercially exploit Cut Tadaao as a paid third-party proxy without prior written agreement.</li>
               </ul>
             </section>
 
@@ -112,7 +112,7 @@ export default function TermsAndConditionsPage() {
                 5. Third-Party Trademarks &amp; Non-Affiliation
               </h2>
               <p>
-                ClipDown is an independent project. ClipDown is <strong>not</strong> endorsed, affiliated, associated, authorized, or sponsored by YouTube, Google LLC, Alphabet Inc., Vimeo, Meta, or any of their respective subsidiaries or affiliates.
+                Cut Tadaao is an independent project. Cut Tadaao is <strong>not</strong> endorsed, affiliated, associated, authorized, or sponsored by YouTube, Google LLC, Alphabet Inc., Vimeo, Meta, or any of their respective subsidiaries or affiliates.
               </p>
               <p>
                 All product and company names, brand logos, trademarks, and registered trademarks displayed on or referenced through the Service are the property of their respective holders. Their mention does not imply any affiliation or endorsement.
@@ -127,8 +127,8 @@ export default function TermsAndConditionsPage() {
                 If you are a copyright holder or an authorized agent and believe that content accessible through our utility infringes upon your copyright, please submit an official DMCA notice to our designated copyright contact:
               </p>
               <div className="bg-neutral-50 border border-neutral-200 rounded-lg p-4 text-xs space-y-2">
-                <p><span className="font-semibold text-neutral-900">Designated Agent:</span> ClipDown Copyright &amp; Legal Compliance</p>
-                <p><span className="font-semibold text-neutral-900">Email:</span> dmca@clipdown.app</p>
+                <p><span className="font-semibold text-neutral-900">Designated Agent:</span> Cut Tadaao Copyright &amp; Legal Compliance</p>
+                <p><span className="font-semibold text-neutral-900">Email:</span> cut.tadaao@gmail.com</p>
                 <p className="text-neutral-600">
                   Please include: identification of the copyrighted work, URL(s) at issue, your physical/electronic signature, contact information, and a statement of good faith belief that the disputed use is unauthorized.
                 </p>
@@ -141,7 +141,7 @@ export default function TermsAndConditionsPage() {
               </h2>
               <p className="uppercase text-xs tracking-wide text-neutral-500 font-semibold">Important Legal Notice</p>
               <p>
-                THE SERVICE IS PROVIDED ON AN &quot;AS IS&quot; AND &quot;AS AVAILABLE&quot; BASIS WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED. TO THE FULLEST EXTENT PERMISSIBLE BY LAW, CLIPDOWN DISCLAIMS ALL WARRANTIES, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO IMPLIED WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND NON-INFRINGEMENT.
+                THE SERVICE IS PROVIDED ON AN &quot;AS IS&quot; AND &quot;AS AVAILABLE&quot; BASIS WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED. TO THE FULLEST EXTENT PERMISSIBLE BY LAW, CUT TADAAO DISCLAIMS ALL WARRANTIES, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO IMPLIED WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND NON-INFRINGEMENT.
               </p>
               <p>
                 WE DO NOT GUARANTEE THAT THE SERVICE WILL FUNCTION UNINTERRUPTED, SECURE, BUG-FREE, OR COMPATIBLE AT ALL TIMES WITH THIRD-PARTY VIDEO HOSTING PLATFORMS WHOSE INFRASTRUCTURE AND PROTOCOLS MAY CHANGE AT ANY TIME.
@@ -153,7 +153,7 @@ export default function TermsAndConditionsPage() {
                 8. Limitation of Liability
               </h2>
               <p>
-                IN NO EVENT SHALL CLIPDOWN, ITS OPERATORS, DIRECTORS, EMPLOYEES, OR AGENTS BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR PUNITIVE DAMAGES (INCLUDING LOSS OF PROFITS, DATA, USE, GOODWILL, OR OTHER INTANGIBLE LOSSES) ARISING OUT OF OR IN CONNECTION WITH YOUR USE OF OR INABILITY TO USE THE SERVICE.
+                IN NO EVENT SHALL CUT TADAAO, ITS OPERATORS, DIRECTORS, EMPLOYEES, OR AGENTS BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR PUNITIVE DAMAGES (INCLUDING LOSS OF PROFITS, DATA, USE, GOODWILL, OR OTHER INTANGIBLE LOSSES) ARISING OUT OF OR IN CONNECTION WITH YOUR USE OF OR INABILITY TO USE THE SERVICE.
               </p>
             </section>
 
@@ -162,7 +162,7 @@ export default function TermsAndConditionsPage() {
                 9. Indemnification
               </h2>
               <p>
-                You agree to defend, indemnify, and hold harmless ClipDown and its operators against any claims, damages, liabilities, losses, costs, or expenses (including reasonable attorney fees) arising from: (a) your use of the Service; (b) your violation of these Terms; or (c) your violation of any third-party intellectual property or privacy right.
+                You agree to defend, indemnify, and hold harmless Cut Tadaao and its operators against any claims, damages, liabilities, losses, costs, or expenses (including reasonable attorney fees) arising from: (a) your use of the Service; (b) your violation of these Terms; or (c) your violation of any third-party intellectual property or privacy right.
               </p>
             </section>
 
@@ -193,7 +193,7 @@ export default function TermsAndConditionsPage() {
                 <Link href="/contact" className="text-neutral-900 underline font-semibold hover:text-black">
                   Contact Us page
                 </Link>{' '}
-                or email <a href="mailto:support@clipdown.app" className="text-neutral-900 underline font-semibold">support@clipdown.app</a>.
+                or email <a href="mailto:cut.tadaao@gmail.com" className="text-neutral-900 underline font-semibold">cut.tadaao@gmail.com</a>.
               </p>
             </section>
           </div>

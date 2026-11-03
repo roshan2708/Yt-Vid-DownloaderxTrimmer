@@ -297,7 +297,7 @@ export default function PricingPage() {
             <div className="border-b border-neutral-100 pb-4">
               <h3 className="text-sm font-semibold text-neutral-900">Are there any watermarks on the downloaded videos?</h3>
               <p className="text-xs text-neutral-600 mt-1.5 leading-relaxed">
-                No. Never. Every video clip downloaded from ClipDown is 100% clean, original-quality MP4 with zero watermarks or branding added.
+                No. Never. Every video clip downloaded from Cut Tadaao is 100% clean, original-quality MP4 with zero watermarks or branding added.
               </p>
             </div>
           </div>

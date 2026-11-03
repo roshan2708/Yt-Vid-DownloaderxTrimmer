@@ -4,8 +4,8 @@ import Navbar from '@/src/components/Navbar';
 import Footer from '@/src/components/Footer';
 
 export const metadata: Metadata = {
-  title: 'Policies & Legal Center | ClipDown',
-  description: 'Overview of ClipDown privacy practices, terms of service, refunds and cancellations, fair use guidelines, and DMCA copyright policies.',
+  title: 'Policies & Legal Center | Cut Tadaao',
+  description: 'Overview of Cut Tadaao privacy practices, terms of service, refunds and cancellations, fair use guidelines, and DMCA copyright policies.',
 };
 
 export default function PoliciesPage() {
@@ -28,7 +28,7 @@ export default function PoliciesPage() {
               Policies &amp; Legal Center
             </h1>
             <p className="text-sm text-neutral-600 max-w-2xl leading-relaxed">
-              ClipDown is committed to user privacy, transparent operations, and copyright compliance. Explore our legal documentation, terms of service, and fair-use guidelines below.
+              Cut Tadaao is committed to user privacy, transparent operations, and copyright compliance. Explore our legal documentation, terms of service, and fair-use guidelines below.
             </p>
           </div>
 
@@ -74,7 +74,7 @@ export default function PoliciesPage() {
                 </div>
                 <h2 className="text-lg font-bold text-neutral-900">Terms &amp; Conditions</h2>
                 <p className="text-xs text-neutral-600 leading-relaxed">
-                  Review the rules governing your use of ClipDown, our acceptable use policy, copyright warranties, platform disclaimers, and limitation of liabilities.
+                  Review the rules governing your use of Cut Tadaao, our acceptable use policy, copyright warranties, platform disclaimers, and limitation of liabilities.
                 </p>
                 <ul className="text-xs text-neutral-500 space-y-1 pt-1">
                   <li>• Personal, educational &amp; fair use</li>
@@ -138,7 +138,7 @@ export default function PoliciesPage() {
             </div>
 
             <p className="text-xs text-neutral-700 leading-relaxed">
-              ClipDown operates as a neutral technical utility. We do not maintain a permanent video hosting service, nor do we claim ownership over any video or audio retrieved through our tool. Users are required to ensure they have the proper rights or fall under legitimate fair-use doctrines before initiating downloads.
+              Cut Tadaao operates as a neutral technical utility. We do not maintain a permanent video hosting service, nor do we claim ownership over any video or audio retrieved through our tool. Users are required to ensure they have the proper rights or fall under legitimate fair-use doctrines before initiating downloads.
             </p>
 
             <div className="bg-white border border-neutral-200 rounded-xl p-4 text-xs space-y-2">
@@ -148,8 +148,8 @@ export default function PoliciesPage() {
               </p>
               <p className="pt-1">
                 <span className="font-medium text-neutral-900">Designated Email:</span>{' '}
-                <a href="mailto:dmca@clipdown.app" className="underline font-semibold text-neutral-800">
-                  dmca@clipdown.app
+                <a href="mailto:cut.tadaao@gmail.com" className="underline font-semibold text-neutral-800">
+                  cut.tadaao@gmail.com
                 </a>
               </p>
             </div>
@@ -163,8 +163,8 @@ export default function PoliciesPage() {
                 <thead>
                   <tr className="bg-neutral-100 border-b border-neutral-200 text-neutral-700 font-semibold">
                     <th className="py-3 px-4">Category</th>
-                    <th className="py-3 px-4">What ClipDown Collects</th>
-                    <th className="py-3 px-4">What ClipDown Never Collects</th>
+                    <th className="py-3 px-4">What Cut Tadaao Collects</th>
+                    <th className="py-3 px-4">What Cut Tadaao Never Collects</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-neutral-200">

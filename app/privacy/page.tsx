@@ -4,8 +4,8 @@ import Navbar from '@/src/components/Navbar';
 import Footer from '@/src/components/Footer';
 
 export const metadata: Metadata = {
-  title: 'Privacy Policy | ClipDown',
-  description: 'Understand how ClipDown collects, uses, handles, and protects your information and temporary video jobs.',
+  title: 'Privacy Policy | Cut Tadaao',
+  description: 'Understand how Cut Tadaao collects, uses, handles, and protects your information and temporary video jobs.',
 };
 
 export default function PrivacyPolicyPage() {
@@ -45,7 +45,7 @@ export default function PrivacyPolicyPage() {
                 1. Overview & Commitment to Privacy
               </h2>
               <p>
-                At ClipDown (&quot;we&quot;, &quot;our&quot;, or &quot;us&quot;), we respect your personal privacy. ClipDown is designed as a focused, minimal utility that enables you to trim and download publicly accessible online video clips.
+                At Cut Tadaao (&quot;we&quot;, &quot;our&quot;, or &quot;us&quot;), we respect your personal privacy. Cut Tadaao is designed as a focused, minimal utility that enables you to trim and download publicly accessible online video clips.
               </p>
               <p>
                 This Privacy Policy explains what information we collect when you use our website and web application, how that information is handled, our strict policies regarding temporary video files, and your rights regarding your personal data.
@@ -98,7 +98,7 @@ export default function PrivacyPolicyPage() {
               </p>
               <ul className="list-disc pl-5 space-y-2 text-neutral-700">
                 <li>
-                  <strong className="text-neutral-900">No Permanent Media Archives:</strong> ClipDown does not build an ongoing archive or library of user downloads. We do not index, catalog, or redistribute your processed video clips.
+                  <strong className="text-neutral-900">No Permanent Media Archives:</strong> Cut Tadaao does not build an ongoing archive or library of user downloads. We do not index, catalog, or redistribute your processed video clips.
                 </li>
                 <li>
                   <strong className="text-neutral-900">Automated Deletion:</strong> Any temporary video or audio files created on our processing servers during trimming are held only long enough for you to complete your download. These files are automatically deleted after download or after job expiration.
@@ -131,7 +131,7 @@ export default function PrivacyPolicyPage() {
                 5. Third-Party Services & Subprocessors
               </h2>
               <p>
-                To provide ClipDown reliably, we rely on established infrastructure providers:
+                To provide Cut Tadaao reliably, we rely on established infrastructure providers:
               </p>
               <ul className="list-disc pl-5 space-y-2 text-neutral-700">
                 <li>
@@ -179,8 +179,8 @@ export default function PrivacyPolicyPage() {
                   our Contact Us page
                 </Link>{' '}
                 or email{' '}
-                <a href="mailto:privacy@clipdown.app" className="text-neutral-900 font-semibold underline hover:text-black">
-                  privacy@clipdown.app
+                <a href="mailto:cut.tadaao@gmail.com" className="text-neutral-900 font-semibold underline hover:text-black">
+                  cut.tadaao@gmail.com
                 </a>.
               </p>
             </section>
@@ -190,7 +190,7 @@ export default function PrivacyPolicyPage() {
                 8. Children&apos;s Privacy
               </h2>
               <p>
-                ClipDown is not targeted to individuals under the age of 13 (or under the age of 16 in certain jurisdictions). We do not knowingly collect personal information from children. If you believe a child has provided us with personal data, please contact us so we can immediately delete it.
+                Cut Tadaao is not targeted to individuals under the age of 13 (or under the age of 16 in certain jurisdictions). We do not knowingly collect personal information from children. If you believe a child has provided us with personal data, please contact us so we can immediately delete it.
               </p>
             </section>
 
@@ -199,7 +199,7 @@ export default function PrivacyPolicyPage() {
                 9. Changes to This Privacy Policy
               </h2>
               <p>
-                We may revise this Privacy Policy periodically to reflect updates to our architecture, legal obligations, or new features. When updates occur, we will update the &quot;Last updated&quot; date at the top of this page. Your continued use of ClipDown signifies your acceptance of the updated terms.
+                We may revise this Privacy Policy periodically to reflect updates to our architecture, legal obligations, or new features. When updates occur, we will update the &quot;Last updated&quot; date at the top of this page. Your continued use of Cut Tadaao signifies your acceptance of the updated terms.
               </p>
             </section>
 
@@ -211,10 +211,10 @@ export default function PrivacyPolicyPage() {
                 If you have questions, feedback, or concerns regarding this Privacy Policy or our data handling practices, please contact us:
               </p>
               <div className="bg-neutral-50 border border-neutral-200 rounded-lg p-4 text-xs space-y-1">
-                <p><span className="font-semibold text-neutral-900">Email:</span> privacy@clipdown.app</p>
+                <p><span className="font-semibold text-neutral-900">Email:</span> cut.tadaao@gmail.com</p>
                 <p><span className="font-semibold text-neutral-900">Online Form:</span>{' '}
                   <Link href="/contact" className="underline text-neutral-900 hover:text-black font-medium">
-                    clipdown.app/contact
+                    cut.tadaao.com/contact
                   </Link>
                 </p>
                 <p><span className="font-semibold text-neutral-900">Response Window:</span> Typically within 24 to 48 business hours.</p>

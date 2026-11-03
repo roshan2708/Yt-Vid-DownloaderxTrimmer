@@ -257,8 +257,8 @@ export default function ContactPage() {
                     </div>
                     <div>
                       <p className="font-semibold text-neutral-900">General &amp; Technical Support</p>
-                      <a href="mailto:support@clipdown.app" className="text-neutral-600 hover:text-neutral-900 underline">
-                        support@clipdown.app
+                      <a href="mailto:cut.tadaao@gmail.com" className="text-neutral-600 hover:text-neutral-900 underline">
+                        cut.tadaao@gmail.com
                       </a>
                     </div>
                   </div>
@@ -271,8 +271,8 @@ export default function ContactPage() {
                     </div>
                     <div>
                       <p className="font-semibold text-neutral-900">Legal, DMCA &amp; Copyright</p>
-                      <a href="mailto:dmca@clipdown.app" className="text-neutral-600 hover:text-neutral-900 underline">
-                        dmca@clipdown.app
+                      <a href="mailto:cut.tadaao@gmail.com" className="text-neutral-600 hover:text-neutral-900 underline">
+                        cut.tadaao@gmail.com
                       </a>
                     </div>
                   </div>
@@ -314,8 +314,8 @@ export default function ContactPage() {
                     <h4 className="font-semibold text-neutral-900">Need to remove copyrighted content?</h4>
                     <p className="text-neutral-600 mt-0.5">
                       Select &quot;DMCA / Copyright Inquiry&quot; or send full copyright claim details to{' '}
-                      <a href="mailto:dmca@clipdown.app" className="underline font-medium text-neutral-800">
-                        dmca@clipdown.app
+                      <a href="mailto:cut.tadaao@gmail.com" className="underline font-medium text-neutral-800">
+                        cut.tadaao@gmail.com
                       </a>.
                     </p>
                   </div>

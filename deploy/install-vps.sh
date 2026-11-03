@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ==============================================================
-# ClipDown VPS Setup Script for Ubuntu 22.04 / 24.04 LTS
+# Cut Tadaao VPS Setup Script for Ubuntu 22.04 / 24.04 LTS
 # ==============================================================
 set -e
 
@@ -26,4 +26,4 @@ node -v
 npm -v
 
 echo "=== Setup complete! ==="
-echo "Now copy your codebase to /var/www/clipdown, run 'npm install', and start the service."
+echo "Now copy your codebase to /var/www/cut-tadaao, run 'npm install', and start the service."

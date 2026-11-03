@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "ClipDown | Minimal Video Trimmer & Downloader",
+  title: "Cut Tadaao | Minimal Video Trimmer & Downloader",
   description: "Paste a video link, select your preferred time range, and download your clip.",
 };
 

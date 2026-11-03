@@ -4,9 +4,9 @@ import Navbar from '@/src/components/Navbar';
 import Footer from '@/src/components/Footer';
 
 export const metadata: Metadata = {
-  title: 'Refunds & Cancellations Policy | ClipDown',
+  title: 'Refunds & Cancellations Policy | Cut Tadaao',
   description:
-    'Read ClipDown’s policy regarding cancellations, no-refunds on digital services, subscription management, and automatic quota restoration.',
+    'Read Cut Tadaao’s policy regarding cancellations, no-refunds on digital services, subscription management, and automatic quota restoration.',
 };
 
 export default function RefundsAndCancellationsPage() {
@@ -103,7 +103,7 @@ export default function RefundsAndCancellationsPage() {
                 1. Overview &amp; Nature of Service
               </h2>
               <p>
-                ClipDown (&quot;we&quot;, &quot;us&quot;, or &quot;our&quot;) provides high-speed cloud video downloading, cutting, and transcoding services. When you subscribe to a paid tier or purchase an add-on, server compute resources, high-capacity bandwidth, and specialized cloud workers are allocated instantly to your account.
+                Cut Tadaao (&quot;we&quot;, &quot;us&quot;, or &quot;our&quot;) provides high-speed cloud video downloading, cutting, and transcoding services. When you subscribe to a paid tier or purchase an add-on, server compute resources, high-capacity bandwidth, and specialized cloud workers are allocated instantly to your account.
               </p>
               <p>
                 To provide transparent billing and clear expectations, this Refunds &amp; Cancellations Policy outlines our cancellation procedures, our strict non-refundable terms for digital services, and our automated quota recovery mechanisms.
@@ -116,10 +116,10 @@ export default function RefundsAndCancellationsPage() {
                 2. No-Refund Policy
               </h2>
               <p>
-                <strong className="text-neutral-900">All purchases and subscription payments made on ClipDown are strictly final and non-refundable.</strong>
+                <strong className="text-neutral-900">All purchases and subscription payments made on Cut Tadaao are strictly final and non-refundable.</strong>
               </p>
               <p>
-                Because ClipDown delivers intangible digital goods and instant server bandwidth:
+                Because Cut Tadaao delivers intangible digital goods and instant server bandwidth:
               </p>
               <ul className="list-disc pl-5 space-y-2 text-neutral-600">
                 <li>
@@ -148,8 +148,8 @@ export default function RefundsAndCancellationsPage() {
               <ul className="list-disc pl-5 space-y-2 text-neutral-600">
                 <li>
                   <strong className="text-neutral-900">Cancel Anytime Without Penalty:</strong> You can cancel your subscription at any time with zero cancellation fees or lock-in penalties through your account billing panel or by writing to{' '}
-                  <a href="mailto:billing@clipdown.app" className="text-neutral-900 underline font-medium">
-                    billing@clipdown.app
+                  <a href="mailto:cut.tadaao@gmail.com" className="text-neutral-900 underline font-medium">
+                    cut.tadaao@gmail.com
                   </a>.
                 </li>
                 <li>
@@ -201,7 +201,7 @@ export default function RefundsAndCancellationsPage() {
                 6. Supported Content &amp; Fair Use
               </h2>
               <p>
-                ClipDown is intended solely for public, unencrypted, and accessible online video content for personal, research, or fair-use workflows.
+                Cut Tadaao is intended solely for public, unencrypted, and accessible online video content for personal, research, or fair-use workflows.
               </p>
               <p className="text-neutral-600 leading-relaxed">
                 We do not support or decrypt DRM-protected media (e.g. Netflix, Amazon Prime, Disney+, Apple TV+), age-gated media requiring private logins, or private streams. Inability to extract content from unsupported, protected, or restricted sources does not constitute grounds for a refund.
@@ -222,12 +222,8 @@ export default function RefundsAndCancellationsPage() {
                 </p>
                 <p className="text-neutral-600">
                   Email us at{' '}
-                  <a href="mailto:billing@clipdown.app" className="font-semibold text-neutral-900 underline">
-                    billing@clipdown.app
-                  </a>{' '}
-                  or{' '}
-                  <a href="mailto:support@clipdown.app" className="font-semibold text-neutral-900 underline">
-                    support@clipdown.app
+                  <a href="mailto:cut.tadaao@gmail.com" className="font-semibold text-neutral-900 underline">
+                    cut.tadaao@gmail.com
                   </a>.
                 </p>
                 <p className="text-neutral-600">

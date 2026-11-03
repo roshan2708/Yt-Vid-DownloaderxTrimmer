@@ -22,7 +22,7 @@ export default function Footer() {
                 </svg>
               </div>
               <span className="font-bold tracking-tight text-neutral-900 text-sm">
-                ClipDown
+                Cut Tadaao
               </span>
             </Link>
             <p className="text-neutral-500 max-w-sm leading-relaxed text-xs">
@@ -93,7 +93,7 @@ export default function Footer() {
         {/* Disclaimer & Copyright */}
         <div className="pt-6 border-t border-neutral-100 flex flex-col sm:flex-row items-center justify-between gap-4 text-[11px] text-neutral-400">
           <p>
-            &copy; 2026 ClipDown. All rights reserved. Built for creator workflows.
+            &copy; 2026 Cut Tadaao. All rights reserved. Built for creator workflows.
           </p>
           <p className="text-center sm:text-right">
             Zero permanent media retention &bull; Encrypted connections

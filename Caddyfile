@@ -1,10 +1,10 @@
 {
     # Global options
-    email {$LETSENCRYPT_EMAIL}
+    email {$LETSENCRYPT_EMAIL:cut.tadaao@gmail.com}
 }
 
-{$DOMAIN_NAME:localhost} {
-    # Reverse proxy to the ClipDown Next.js and backend service
+{$DOMAIN_NAME:cut.tadaao.com} {
+    # Reverse proxy to the Cut Tadaao Next.js and backend service
     reverse_proxy app:10000 {
         # Unbuffered streaming for real-time video downloads and trimming progress
         flush_interval -1

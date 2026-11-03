@@ -1,15 +1,15 @@
-# Deploying ClipDown on Render
+# Deploying Cut Tadaao on Render
 
-This guide provides step-by-step instructions to deploy ClipDown to [Render](https://render.com) using the included production **Dockerfile**.
+This guide provides step-by-step instructions to deploy Cut Tadaao to [Render](https://render.com) using the included production **Dockerfile**.
 
-Because ClipDown relies on **FFmpeg** and **yt-dlp** for high-performance video trimming and merging, deploying with Docker ensures all media binaries and dependencies are automatically installed and configured.
+Because Cut Tadaao relies on **FFmpeg** and **yt-dlp** for high-performance video trimming and merging, deploying with Docker ensures all media binaries and dependencies are automatically installed and configured.
 
 ---
 
 ## Prerequisites
 
 1. A [Render account](https://dashboard.render.com).
-2. Your ClipDown repository pushed to GitHub or GitLab.
+2. Your Cut Tadaao repository pushed to GitHub or GitLab.
 3. Your Firebase project credentials (already configured in your `.env.local`).
 
 ---
@@ -28,7 +28,7 @@ Render will detect the `Dockerfile` in the root directory. Fill in the following
 
 | Field | Value |
 |---|---|
-| **Name** | `clipdown` (or your preferred name) |
+| **Name** | `cut-tadaao` (or your preferred name) |
 | **Region** | Choose the region closest to your users (e.g., *Oregon (US West)* or *Frankfurt (EU)*) |
 | **Branch** | `main` |
 | **Runtime** | **Docker** (Render automatically selects this if `Dockerfile` is present) |
@@ -68,12 +68,12 @@ BACKEND_URL=http://127.0.0.1:4000
 Google OAuth requires your production domain to be on Firebase's authorized domains list.
 
 1. Once your Render deployment begins, note your Render URL:  
-   `https://clipdown-xxxx.onrender.com`
+   `https://cut.tadaao.com` (or `https://cut-tadaao-xxxx.onrender.com`)
 2. Open the [Firebase Console](https://console.firebase.google.com).
 3. Select your project **`clipkaro-effc2`**.
 4. Go to **Authentication** -> **Settings** tab -> **Authorized domains**.
 5. Click **Add domain** and enter your Render hostname:  
-   `clipdown-xxxx.onrender.com` (without `https://`).
+   `cut.tadaao.com` (and `cut-tadaao-xxxx.onrender.com` without `https://`).
 6. Click **Save**.
 
 ---

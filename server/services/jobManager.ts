@@ -11,7 +11,7 @@ if (!fs.existsSync(DISK_TEMP_DIR)) {
 // High-speed RAM disk support: On Linux, use /dev/shm for near-instant I/O on clips
 export const RAM_TEMP_DIR = (() => {
   if (process.platform === 'linux' && fs.existsSync('/dev/shm')) {
-    const shmDir = path.join('/dev/shm', 'clipdown_temp');
+    const shmDir = path.join('/dev/shm', 'cuttadaao_temp');
     try {
       if (!fs.existsSync(shmDir)) {
         fs.mkdirSync(shmDir, { recursive: true });

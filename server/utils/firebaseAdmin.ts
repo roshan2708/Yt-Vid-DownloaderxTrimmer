@@ -47,10 +47,10 @@ export function getFirebaseAdminApp(): App | null {
           privateKey,
         }),
       });
-      console.log('[ClipDown Backend] Firebase Admin SDK initialized with Service Account.');
+      console.log('[Cut Tadaao Backend] Firebase Admin SDK initialized with Service Account.');
       return appInstance;
     } catch (err) {
-      console.error('[ClipDown Backend] Error initializing Firebase Admin SDK with cert:', err);
+      console.error('[Cut Tadaao Backend] Error initializing Firebase Admin SDK with cert:', err);
     }
   }
 
@@ -58,15 +58,15 @@ export function getFirebaseAdminApp(): App | null {
   if (projectId) {
     try {
       appInstance = initializeApp({ projectId });
-      console.log(`[ClipDown Backend] Firebase Admin SDK initialized with Project ID: ${projectId}`);
+      console.log(`[Cut Tadaao Backend] Firebase Admin SDK initialized with Project ID: ${projectId}`);
       return appInstance;
     } catch (err) {
-      console.error('[ClipDown Backend] Error initializing Firebase Admin SDK with projectId:', err);
+      console.error('[Cut Tadaao Backend] Error initializing Firebase Admin SDK with projectId:', err);
     }
   }
 
   console.warn(
-    '[ClipDown Backend] Firebase Project ID is not configured (FIREBASE_PROJECT_ID or NEXT_PUBLIC_FIREBASE_PROJECT_ID).'
+    '[Cut Tadaao Backend] Firebase Project ID is not configured (FIREBASE_PROJECT_ID or NEXT_PUBLIC_FIREBASE_PROJECT_ID).'
   );
   return null;
 }
@@ -93,7 +93,7 @@ export function getFirebaseFirestore(): Firestore | null {
     firestoreInstance = getFirestore(app);
     return firestoreInstance;
   } catch (err) {
-    console.warn('[ClipDown Backend] Could not initialize Firestore instance:', err);
+    console.warn('[Cut Tadaao Backend] Could not initialize Firestore instance:', err);
     return null;
   }
 }
@@ -127,7 +127,7 @@ export async function verifyFirebaseIdToken(token: string): Promise<Authenticate
     };
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : 'Invalid token';
-    console.warn('[ClipDown Backend] Token verification failed:', msg);
+    console.warn('[Cut Tadaao Backend] Token verification failed:', msg);
     return null;
   }
 }

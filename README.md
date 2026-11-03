@@ -1,12 +1,12 @@
-# ClipDown – Minimal Video Trimming & Downloading Service
+# Cut Tadaao – Minimal Video Trimming & Downloading Service
 
-ClipDown is a fast, minimal video trimming and downloading utility. Users paste a video URL, select a start and end time (`HH:MM:SS`), and download only that specific portion of the video as a clean MP4 file.
+Cut Tadaao is a fast, minimal video trimming and downloading utility. Users paste a video URL, select a start and end time (`HH:MM:SS`), and download only that specific portion of the video as a clean MP4 file.
 
 ---
 
 ## 1. Architecture Overview
 
-ClipDown decouples frontend presentation and heavy video processing:
+Cut Tadaao decouples frontend presentation and heavy video processing:
 
 ```
 [ Frontend: Next.js + Tailwind CSS (Vercel) ]
@@ -200,10 +200,10 @@ sudo chmod a+rx /usr/local/bin/yt-dlp
 #### Step 2: Deploy Project Code
 
 ```bash
-sudo mkdir -p /var/www/clipdown
-sudo chown -R $USER:$USER /var/www/clipdown
-git clone <your-repo-url> /var/www/clipdown
-cd /var/www/clipdown
+sudo mkdir -p /var/www/cut-tadaao
+sudo chown -R $USER:$USER /var/www/cut-tadaao
+git clone <your-repo-url> /var/www/cut-tadaao
+cd /var/www/cut-tadaao
 npm install
 ```
 
@@ -211,14 +211,14 @@ npm install
 
 Copy the systemd unit file:
 ```bash
-sudo cp deploy/clipdown-backend.service /etc/systemd/system/clipdown.service
+sudo cp deploy/cut-tadaao-backend.service /etc/systemd/system/cut-tadaao.service
 sudo systemctl daemon-reload
-sudo systemctl enable --now clipdown
+sudo systemctl enable --now cut-tadaao
 ```
 
 Verify service is running:
 ```bash
-sudo systemctl status clipdown
+sudo systemctl status cut-tadaao
 curl http://127.0.0.1:4000/health
 ```
 
@@ -226,8 +226,8 @@ curl http://127.0.0.1:4000/health
 
 Copy the Nginx configuration:
 ```bash
-sudo cp deploy/nginx.conf /etc/nginx/sites-available/clipdown
-sudo ln -s /etc/nginx/sites-available/clipdown /etc/nginx/sites-enabled/
+sudo cp deploy/nginx.conf /etc/nginx/sites-available/cut-tadaao
+sudo ln -s /etc/nginx/sites-available/cut-tadaao /etc/nginx/sites-enabled/
 sudo nginx -t
 sudo systemctl reload nginx
 ```
