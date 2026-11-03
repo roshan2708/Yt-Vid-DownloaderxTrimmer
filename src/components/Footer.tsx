@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import BrandLogo from './BrandLogo';
 
 export default function Footer() {
   return (
@@ -8,19 +9,7 @@ export default function Footer() {
           {/* Brand info */}
           <div className="md:col-span-2 space-y-3">
             <Link href="/" className="flex items-center gap-2 group inline-flex">
-              <div className="w-6 h-6 rounded bg-neutral-900 text-white flex items-center justify-center font-bold text-xs">
-                <svg
-                  className="w-3.5 h-3.5 text-white"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2.2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  viewBox="0 0 24 24"
-                >
-                  <polygon points="6 3 20 12 6 21 6 3" />
-                </svg>
-              </div>
+              <BrandLogo className="w-7 h-7 flex-shrink-0" />
               <span className="font-bold tracking-tight text-neutral-900 text-sm">
                 Cut Tadaao
               </span>

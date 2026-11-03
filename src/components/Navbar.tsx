@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
+import BrandLogo from './BrandLogo';
 import { User } from 'firebase/auth';
 import {
   getCurrentIdToken,
@@ -103,20 +104,8 @@ export default function Navbar() {
     <header className="border-b border-neutral-200 bg-white sticky top-0 z-40">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
         {/* Brand Logo */}
-        <Link href="/" className="flex items-center gap-2 group">
-          <div className="w-8 h-8 rounded-lg bg-neutral-900 text-white flex items-center justify-center font-bold text-sm tracking-tighter group-hover:bg-neutral-800 transition-colors">
-            <svg
-              className="w-4 h-4 text-white"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2.2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              viewBox="0 0 24 24"
-            >
-              <polygon points="6 3 20 12 6 21 6 3" />
-            </svg>
-          </div>
+        <Link href="/" className="flex items-center gap-2.5 group">
+          <BrandLogo className="w-8 h-8 flex-shrink-0" />
           <span className="text-lg font-bold tracking-tight text-neutral-900">
             Cut Tadaao
           </span>
