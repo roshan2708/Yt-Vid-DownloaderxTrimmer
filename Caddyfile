@@ -1,0 +1,24 @@
+{
+    # Global options
+    email {$LETSENCRYPT_EMAIL}
+}
+
+{$DOMAIN_NAME:localhost} {
+    # Reverse proxy to the ClipDown Next.js and backend service
+    reverse_proxy app:10000 {
+        # Unbuffered streaming for real-time video downloads and trimming progress
+        flush_interval -1
+    }
+
+    # Enable Gzip and Zstandard compression for static assets
+    encode gzip zstd
+
+    # Security headers
+    header {
+        # Keep security headers intact
+        X-Content-Type-Options "nosniff"
+        X-XSS-Protection "1; mode=block"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+    }
+}
