@@ -5,7 +5,7 @@ import Footer from '@/src/components/Footer';
 
 export const metadata: Metadata = {
   title: 'Policies & Legal Center | ClipDown',
-  description: 'Overview of ClipDown privacy practices, terms of service, fair use guidelines, and DMCA copyright policies.',
+  description: 'Overview of ClipDown privacy practices, terms of service, refunds and cancellations, fair use guidelines, and DMCA copyright policies.',
 };
 
 export default function PoliciesPage() {
@@ -33,7 +33,7 @@ export default function PoliciesPage() {
           </div>
 
           {/* Core Policies Grid */}
-          <section className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <section className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {/* Privacy Policy Card */}
             <div className="border border-neutral-200 rounded-2xl p-6 bg-white hover:border-neutral-400 transition-colors flex flex-col justify-between space-y-4">
               <div className="space-y-3">
@@ -77,7 +77,7 @@ export default function PoliciesPage() {
                   Review the rules governing your use of ClipDown, our acceptable use policy, copyright warranties, platform disclaimers, and limitation of liabilities.
                 </p>
                 <ul className="text-xs text-neutral-500 space-y-1 pt-1">
-                  <li>• Personal, educational &amp; fair use requirements</li>
+                  <li>• Personal, educational &amp; fair use</li>
                   <li>• Copyright compliance obligations</li>
                   <li>• Independent platform disclaimer</li>
                   <li>• Rate limits &amp; anti-abuse policies</li>
@@ -89,6 +89,36 @@ export default function PoliciesPage() {
                   className="inline-flex items-center gap-1.5 text-xs font-semibold text-neutral-900 hover:text-black group"
                 >
                   <span>Read Terms &amp; Conditions</span>
+                  <span className="group-hover:translate-x-1 transition-transform">→</span>
+                </Link>
+              </div>
+            </div>
+
+            {/* Refunds & Cancellations Card */}
+            <div className="border border-neutral-200 rounded-2xl p-6 bg-white hover:border-neutral-400 transition-colors flex flex-col justify-between space-y-4">
+              <div className="space-y-3">
+                <div className="w-10 h-10 rounded-xl bg-neutral-100 flex items-center justify-center text-neutral-800">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                  </svg>
+                </div>
+                <h2 className="text-lg font-bold text-neutral-900">Refunds &amp; Cancellations</h2>
+                <p className="text-xs text-neutral-600 leading-relaxed">
+                  Understand your billing rights, our 7-day money-back guarantee, hassle-free subscription cancellation, and automatic quota restoration rules.
+                </p>
+                <ul className="text-xs text-neutral-500 space-y-1 pt-1">
+                  <li>• 7-day money-back guarantee</li>
+                  <li>• Cancel subscriptions anytime</li>
+                  <li>• Automatic quota refund on job failures</li>
+                  <li>• 5–7 business days disbursement</li>
+                </ul>
+              </div>
+              <div className="pt-4 border-t border-neutral-100">
+                <Link
+                  href="/refunds"
+                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-neutral-900 hover:text-black group"
+                >
+                  <span>Read Refund Policy</span>
                   <span className="group-hover:translate-x-1 transition-transform">→</span>
                 </Link>
               </div>

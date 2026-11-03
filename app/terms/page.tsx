@@ -45,9 +45,13 @@ export default function TermsAndConditionsPage() {
                 1. Acceptance of Terms
               </h2>
               <p>
-                Welcome to ClipDown. By accessing, browsing, or utilizing the ClipDown web application, API, or associated services (collectively, the &quot;Service&quot;), you acknowledge that you have read, understood, and agree to be bound by these Terms &amp; Conditions (&quot;Terms&quot;) and our{' '}
+                Welcome to ClipDown. By accessing, browsing, or utilizing the ClipDown web application, API, or associated services (collectively, the &quot;Service&quot;), you acknowledge that you have read, understood, and agree to be bound by these Terms &amp; Conditions (&quot;Terms&quot;), our{' '}
                 <Link href="/privacy" className="text-neutral-900 underline hover:text-black font-medium">
                   Privacy Policy
+                </Link>
+                , and our{' '}
+                <Link href="/refunds" className="text-neutral-900 underline hover:text-black font-medium">
+                  Refunds &amp; Cancellations Policy
                 </Link>.
               </p>
               <p>

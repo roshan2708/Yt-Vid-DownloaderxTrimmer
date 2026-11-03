@@ -285,6 +285,16 @@ export default function PricingPage() {
             </div>
 
             <div className="border-b border-neutral-100 pb-4">
+              <h3 className="text-sm font-semibold text-neutral-900">What is your cancellation and refund policy?</h3>
+              <p className="text-xs text-neutral-600 mt-1.5 leading-relaxed">
+                You can cancel your subscription at any time with zero lock-in or cancellation fees. We also provide a <strong>7-day money-back guarantee</strong> for first-time Creator Pro and Studio subscribers. For complete details, see our{' '}
+                <Link href="/refunds" className="text-neutral-900 underline font-medium hover:text-black">
+                  Refunds &amp; Cancellations Policy
+                </Link>.
+              </p>
+            </div>
+
+            <div className="border-b border-neutral-100 pb-4">
               <h3 className="text-sm font-semibold text-neutral-900">Are there any watermarks on the downloaded videos?</h3>
               <p className="text-xs text-neutral-600 mt-1.5 leading-relaxed">
                 No. Never. Every video clip downloaded from ClipDown is 100% clean, original-quality MP4 with zero watermarks or branding added.

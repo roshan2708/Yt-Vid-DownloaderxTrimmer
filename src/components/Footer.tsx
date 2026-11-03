@@ -77,6 +77,11 @@ export default function Footer() {
                 </Link>
               </li>
               <li>
+                <Link href="/refunds" className="hover:text-neutral-900 transition-colors">
+                  Refunds &amp; Cancellations
+                </Link>
+              </li>
+              <li>
                 <Link href="/policies" className="hover:text-neutral-900 transition-colors">
                   Fair Use &amp; DMCA
                 </Link>
