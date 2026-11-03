@@ -1,6 +1,8 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import Link from 'next/link';
+import Footer from '@/src/components/Footer';
 import { User } from 'firebase/auth';
 import {
   checkRedirectResult,
@@ -357,8 +359,22 @@ export default function Home() {
     <div className="min-h-screen flex flex-col bg-white text-neutral-900 font-sans">
       {/* Header */}
       <header className="border-b border-neutral-200 py-3.5 px-6 md:px-12 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <span className="text-xl font-bold tracking-tight text-black">ClipDown</span>
+        <div className="flex items-center gap-6">
+          <Link href="/" className="text-xl font-bold tracking-tight text-black">ClipDown</Link>
+          <nav className="hidden md:flex items-center gap-4 text-xs font-medium text-neutral-600">
+            <Link href="/policies" className="hover:text-neutral-900 transition-colors">
+              Policies
+            </Link>
+            <Link href="/terms" className="hover:text-neutral-900 transition-colors">
+              Terms &amp; Conditions
+            </Link>
+            <Link href="/privacy" className="hover:text-neutral-900 transition-colors">
+              Privacy
+            </Link>
+            <Link href="/contact" className="hover:text-neutral-900 transition-colors">
+              Contact Us
+            </Link>
+          </nav>
         </div>
 
         {/* Auth Section in Header */}
@@ -772,9 +788,9 @@ export default function Home() {
       </main>
 
       {/* Footer */}
-      <footer className="border-t border-neutral-200 py-6 px-6 text-center text-xs text-neutral-500">
-        <p>© 2026 ClipDown. Minimal video trimming & downloading utility.</p>
-      </footer>
+      <Footer />
+
+
     </div>
   );
 }
