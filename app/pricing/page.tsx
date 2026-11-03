@@ -2,17 +2,12 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import Navbar from '@/src/components/Navbar';
-import Footer from '@/src/components/Footer';
 
 export default function PricingPage() {
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('yearly');
 
   return (
-    <div className="min-h-screen flex flex-col bg-white text-neutral-900 font-sans">
-      <Navbar />
-
-      <main className="flex-1 py-14 px-4 sm:px-6 lg:px-8 max-w-6xl mx-auto w-full">
+    <div className="flex-1 py-14 px-4 sm:px-6 lg:px-8 max-w-6xl mx-auto w-full">
         {/* Header */}
         <div className="text-center max-w-2xl mx-auto mb-10">
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-neutral-100 text-neutral-700 text-xs font-semibold uppercase tracking-wider mb-3">
@@ -302,9 +297,6 @@ export default function PricingPage() {
             </div>
           </div>
         </div>
-      </main>
-
-      <Footer />
     </div>
   );
 }

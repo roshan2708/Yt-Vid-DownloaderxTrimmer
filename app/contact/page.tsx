@@ -2,8 +2,6 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import Navbar from '@/src/components/Navbar';
-import Footer from '@/src/components/Footer';
 
 export default function ContactPage() {
   const [formData, setFormData] = useState({
@@ -83,11 +81,8 @@ export default function ContactPage() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-white text-neutral-900 font-sans">
-      <Navbar />
-
-      <main className="flex-1 py-12 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-5xl mx-auto">
+    <div className="flex-1 py-12 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-5xl mx-auto">
           {/* Header */}
           <div className="mb-10 pb-6 border-b border-neutral-200">
             <div className="flex items-center gap-2 text-xs text-neutral-500 mb-3">
@@ -324,10 +319,7 @@ export default function ContactPage() {
             </div>
           </div>
         </div>
-      </main>
-
-      <Footer />
-    </div>
+      </div>
   );
 }
 

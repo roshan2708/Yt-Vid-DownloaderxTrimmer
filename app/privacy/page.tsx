@@ -1,7 +1,5 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import Navbar from '@/src/components/Navbar';
-import Footer from '@/src/components/Footer';
 
 export const metadata: Metadata = {
   title: 'Privacy Policy | Cut Tadaao',
@@ -12,11 +10,8 @@ export default function PrivacyPolicyPage() {
   const lastUpdated = 'March 1, 2026';
 
   return (
-    <div className="min-h-screen flex flex-col bg-white text-neutral-900 font-sans">
-      <Navbar />
-
-      <main className="flex-1 py-12 px-4 sm:px-6 lg:px-8">
-        <article className="max-w-3xl mx-auto">
+    <div className="flex-1 py-12 px-4 sm:px-6 lg:px-8">
+      <article className="max-w-3xl mx-auto">
           {/* Header */}
           <div className="mb-10 pb-8 border-b border-neutral-200">
             <div className="flex items-center gap-2 text-xs text-neutral-500 mb-3">
@@ -222,10 +217,7 @@ export default function PrivacyPolicyPage() {
             </section>
           </div>
         </article>
-      </main>
-
-      <Footer />
-    </div>
+      </div>
   );
 }
 

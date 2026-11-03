@@ -2,8 +2,6 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import Link from 'next/link';
-import Navbar from '@/src/components/Navbar';
-import Footer from '@/src/components/Footer';
 import { User } from 'firebase/auth';
 import {
   checkRedirectResult,
@@ -402,13 +400,8 @@ export default function Home() {
   );
 
   return (
-    <div className="min-h-screen flex flex-col bg-white text-neutral-900 font-sans">
-      {/* Standard Unified Header */}
-      <Navbar />
-
-      {/* Main Section */}
-      <main className="flex-1 flex flex-col items-center justify-center px-4 py-10 md:py-14">
-        <div className="w-full max-w-xl mx-auto space-y-6">
+    <div className="flex-1 flex flex-col items-center justify-center px-4 py-10 md:py-14">
+      <div className="w-full max-w-xl mx-auto space-y-6">
           {/* Heading */}
           <div className="text-center mb-4">
             <h1 className="text-3xl md:text-4xl font-bold tracking-tight text-neutral-900 mb-2">
@@ -798,10 +791,6 @@ export default function Home() {
             </div>
           )}
         </div>
-      </main>
-
-      {/* Footer */}
-      <Footer />
-    </div>
+      </div>
   );
 }
