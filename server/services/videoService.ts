@@ -793,9 +793,10 @@ export async function processVideoJob(jobId: string): Promise<void> {
     // Strategy 1: yt-dlp
     if (!success) {
       const q = job.selectedQuality;
+      // High-performance format selection: Prioritize native H.264 (AVC1) + AAC (M4A) streams to avoid re-encoding
       const formatSelector = q
-        ? `bestvideo[height<=${q}][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=${q}]+bestaudio/best[height<=${q}]/best`
-        : 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio/best[ext=mp4]/best';
+        ? `bestvideo[height<=${q}][vcodec^=avc1]+bestaudio[ext=m4a]/bestvideo[height<=${q}][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=${q}]+bestaudio/best[height<=${q}]/best`
+        : 'bestvideo[vcodec^=avc1]+bestaudio[ext=m4a]/bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio/best';
 
       jobManager.updateJob(jobId, {
         step: job.isFullVideo ? 'Downloading and merging video streams...' : 'Extracting video segment with FFmpeg...',
@@ -807,6 +808,10 @@ export async function processVideoJob(jobId: string): Promise<void> {
         formatSelector,
         '--merge-output-format',
         'mp4',
+        '--concurrent-fragments',
+        '4',
+        '--postprocessor-args',
+        'ffmpeg:-threads 2 -movflags +faststart',
         ...getYtDlpCommonArgs(),
         '--ffmpeg-location',
         path.dirname(ffmpegBin),

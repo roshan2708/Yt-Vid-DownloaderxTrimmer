@@ -3,12 +3,25 @@ import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import { Job } from '../types';
 
-export const TEMP_DIR = path.resolve(process.cwd(), 'server', 'temp');
-
-// Ensure temp directory exists
-if (!fs.existsSync(TEMP_DIR)) {
-  fs.mkdirSync(TEMP_DIR, { recursive: true });
-}
+// High-speed RAM disk support: On Linux, use /dev/shm for near-instant I/O without SSD wear
+export const TEMP_DIR = (() => {
+  if (process.platform === 'linux' && fs.existsSync('/dev/shm')) {
+    const shmDir = path.join('/dev/shm', 'clipdown_temp');
+    try {
+      if (!fs.existsSync(shmDir)) {
+        fs.mkdirSync(shmDir, { recursive: true });
+      }
+      return shmDir;
+    } catch {
+      // Fallback if permission denied
+    }
+  }
+  const diskTemp = path.resolve(process.cwd(), 'server', 'temp');
+  if (!fs.existsSync(diskTemp)) {
+    fs.mkdirSync(diskTemp, { recursive: true });
+  }
+  return diskTemp;
+})();
 
 class JobManager {
   private jobs = new Map<string, Job>();
