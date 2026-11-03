@@ -291,23 +291,21 @@ export async function fetchFromInvidiousOrPiped(videoId: string): Promise<Direct
 }
 
 /**
- * Standard yt-dlp arguments optimized for datacenter and bypass
+ * Standard yt-dlp arguments optimized for stability and bypass
  */
-export function getYtDlpCommonArgs(client = 'web_embedded,android'): string[] {
+export function getYtDlpCommonArgs(client?: string): string[] {
   const args = [
     '--no-warnings',
     '--no-playlist',
     '--no-check-certificates',
     '--geo-bypass',
     '--socket-timeout',
-    '20',
-    '--js-runtimes',
-    `node:${process.execPath}`,
-    '--extractor-args',
-    `youtube:player_client=${client}`,
-    '--user-agent',
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    '30',
   ];
+
+  if (client) {
+    args.push('--extractor-args', `youtube:player_client=${client}`);
+  }
 
   const proxy = process.env.PROXY_URL || process.env.HTTP_PROXY || process.env.HTTPS_PROXY;
   if (proxy) {
@@ -362,7 +360,8 @@ function execProcess(
     if (options?.timeoutMs) {
       timer = setTimeout(() => {
         child.kill('SIGKILL');
-        reject(new Error(`Command timed out after ${options.timeoutMs}ms`));
+        const detail = (stderr || stdout).slice(-300).trim();
+        reject(new Error(`Command timed out after ${options.timeoutMs}ms${detail ? `: ${detail}` : ''}`));
       }, options.timeoutMs);
     }
 
@@ -469,7 +468,7 @@ export async function fetchVideoMetadata(url: string): Promise<VideoMetadata> {
   let ytDlpErrorObj: Error | null = null;
 
   // Strategy 1: yt-dlp with multi-client bypass fallback
-  const candidateClients = ['web_embedded,android', 'mweb,android', 'tv,android', 'android,web'];
+  const candidateClients: (string | undefined)[] = [undefined, 'ios,web', 'android,web'];
 
   for (const client of candidateClients) {
     try {
@@ -808,7 +807,7 @@ export async function processVideoJob(jobId: string): Promise<void> {
         formatSelector,
         '--merge-output-format',
         'mp4',
-        ...getYtDlpCommonArgs('web_embedded,android'),
+        ...getYtDlpCommonArgs(),
         '--ffmpeg-location',
         path.dirname(ffmpegBin),
       ];
@@ -820,6 +819,7 @@ export async function processVideoJob(jobId: string): Promise<void> {
 
       ytDlpArgs.push('-o', outputPath, job.url);
 
+      let ytDlpError = '';
       try {
         const res = await execProcess(ytDlpBin, ytDlpArgs, {
           timeoutMs: 300000,
@@ -844,55 +844,60 @@ export async function processVideoJob(jobId: string): Promise<void> {
 
         if (res.code === 0 && fs.existsSync(outputPath) && fs.statSync(outputPath).size > 0) {
           success = true;
+        } else {
+          ytDlpError = res.stderr || 'yt-dlp failed to download streams.';
         }
       } catch (ytErr) {
-        console.warn(`yt-dlp processing failed for job ${jobId}, falling back to direct ffmpeg:`, ytErr);
-      }
-    }
-
-    // Strategy 2: Direct FFmpeg cut/stream fallback
-    if (!success) {
-      jobManager.updateJob(jobId, {
-        step: 'Processing stream directly with FFmpeg...',
-        progress: 50,
-      });
-
-      const ffmpegArgs: string[] = ['-y'];
-
-      if (!job.isFullVideo && typeof job.startSeconds === 'number' && typeof job.endSeconds === 'number') {
-        ffmpegArgs.push('-ss', job.startSeconds.toString(), '-to', job.endSeconds.toString());
+        ytDlpError = ytErr instanceof Error ? ytErr.message : String(ytErr);
+        console.warn(`yt-dlp processing failed for job ${jobId}:`, ytDlpError);
       }
 
-      ffmpegArgs.push(
-        '-i',
-        job.url,
-        '-c:v',
-        'libx264',
-        '-preset',
-        'fast',
-        '-crf',
-        '23',
-        '-c:a',
-        'aac',
-        '-b:a',
-        '128k',
-        '-movflags',
-        '+faststart',
-        outputPath
-      );
+      // Strategy 2: Direct FFmpeg cut/stream fallback (only for direct media file URLs, e.g. .mp4/.m3u8)
+      const isDirectMediaUrl = Boolean(job.url.match(/\.(mp4|m3u8|webm|mov|mkv)(\?|$)/i));
+      if (!success && isDirectMediaUrl) {
+        jobManager.updateJob(jobId, {
+          step: 'Processing stream directly with FFmpeg...',
+          progress: 50,
+        });
 
-      const res = await execProcess(ffmpegBin, ffmpegArgs, {
-        timeoutMs: 300000,
-      });
+        const ffmpegArgs: string[] = ['-y'];
 
-      if (res.code === 0 && fs.existsSync(outputPath) && fs.statSync(outputPath).size > 0) {
-        success = true;
-      } else {
-        throw new Error(
-          `FFmpeg processing failed with exit code ${res.code}. ${res.stderr.slice(-300) || 'Unknown error'}`
+        if (!job.isFullVideo && typeof job.startSeconds === 'number' && typeof job.endSeconds === 'number') {
+          ffmpegArgs.push('-ss', job.startSeconds.toString(), '-to', job.endSeconds.toString());
+        }
+
+        ffmpegArgs.push(
+          '-i',
+          job.url,
+          '-c:v',
+          'libx264',
+          '-preset',
+          'fast',
+          '-crf',
+          '23',
+          '-c:a',
+          'aac',
+          '-b:a',
+          '128k',
+          '-movflags',
+          '+faststart',
+          outputPath
         );
+
+        const res = await execProcess(ffmpegBin, ffmpegArgs, {
+          timeoutMs: 300000,
+        });
+
+        if (res.code === 0 && fs.existsSync(outputPath) && fs.statSync(outputPath).size > 0) {
+          success = true;
+        }
+      }
+
+      if (!success) {
+        throw new Error(ytDlpError || 'Failed to download and process video streams.');
       }
     }
+
 
     // Verify final file
     if (!fs.existsSync(outputPath)) {
