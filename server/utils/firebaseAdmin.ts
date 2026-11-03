@@ -1,5 +1,6 @@
 import { App, cert, getApp, getApps, initializeApp } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
+import { getFirestore, Firestore } from 'firebase-admin/firestore';
 import dotenv from 'dotenv';
 import path from 'path';
 
@@ -8,6 +9,7 @@ dotenv.config();
 dotenv.config({ path: path.resolve(process.cwd(), '.env.local') });
 
 let appInstance: App | null = null;
+let firestoreInstance: Firestore | null = null;
 
 /**
  * Initializes Firebase Admin SDK using environment variables
@@ -67,6 +69,33 @@ export function getFirebaseAdminApp(): App | null {
     '[ClipDown Backend] Firebase Project ID is not configured (FIREBASE_PROJECT_ID or NEXT_PUBLIC_FIREBASE_PROJECT_ID).'
   );
   return null;
+}
+
+/**
+ * Returns the Cloud Firestore instance if credentials exist, or null if in development/fallback mode
+ */
+export function getFirebaseFirestore(): Firestore | null {
+  if (firestoreInstance) return firestoreInstance;
+
+  const hasCredentials = Boolean(
+    (process.env.FIREBASE_CLIENT_EMAIL && process.env.FIREBASE_PRIVATE_KEY) ||
+      process.env.GOOGLE_APPLICATION_CREDENTIALS
+  );
+
+  if (!hasCredentials) {
+    return null;
+  }
+
+  const app = getFirebaseAdminApp();
+  if (!app) return null;
+
+  try {
+    firestoreInstance = getFirestore(app);
+    return firestoreInstance;
+  } catch (err) {
+    console.warn('[ClipDown Backend] Could not initialize Firestore instance:', err);
+    return null;
+  }
 }
 
 export interface AuthenticatedUser {

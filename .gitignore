@@ -46,3 +46,7 @@ server/temp/*
 
 # binaries
 bin/
+
+# local quota storage
+server/data/*
+!server/data/.gitkeep

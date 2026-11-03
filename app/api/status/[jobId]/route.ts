@@ -38,5 +38,6 @@ export async function GET(
     fileSize: job.fileSize,
     isFullVideo: job.isFullVideo,
     selectedQuality: job.selectedQuality,
+    quotaRefunded: job.quotaRefunded || false,
   });
 }

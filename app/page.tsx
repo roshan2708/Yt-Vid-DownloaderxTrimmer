@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import Link from 'next/link';
 import Footer from '@/src/components/Footer';
 import { User } from 'firebase/auth';
@@ -44,6 +44,26 @@ interface JobStatusResponse {
   fileSize?: number;
   isFullVideo?: boolean;
   selectedQuality?: number;
+  quotaRefunded?: boolean;
+}
+
+interface UserQuota {
+  userId: string;
+  tier: 'free' | 'pro' | 'studio' | 'daypass';
+  tierName: string;
+  quotaCycle?: 'daily' | 'monthly';
+  quotaLimit?: number;
+  quotaUsed?: number;
+  remainingQuota?: number;
+  trimsToday: number;
+  dailyLimit: number;
+  remainingToday: number;
+  bonusCredits: number;
+  totalRemaining: number;
+  secondsUntilReset: number;
+  maxQuality: number;
+  maxClipDurationSec: number;
+  maxSourceDurationSec: number;
 }
 
 export default function Home() {
@@ -54,6 +74,10 @@ export default function Home() {
   const [authError, setAuthError] = useState<string | null>(null);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const userMenuRef = useRef<HTMLDivElement | null>(null);
+
+  // User Quota state
+  const [userQuota, setUserQuota] = useState<UserQuota | null>(null);
+  const [isQuotaLoading, setIsQuotaLoading] = useState(false);
 
   // Form input state
   const [url, setUrl] = useState('');
@@ -77,9 +101,30 @@ export default function Home() {
 
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Fetch live quota for current user
+  const refreshUserQuota = useCallback(async () => {
+    try {
+      setIsQuotaLoading(true);
+      const token = await getCurrentIdToken();
+      if (!token) return;
+
+      const res = await fetch('/api/quota', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (res.ok) {
+        const data: UserQuota = await res.json();
+        setUserQuota(data);
+      }
+    } catch (err) {
+      console.warn('Failed to fetch user quota:', err);
+    } finally {
+      setIsQuotaLoading(false);
+    }
+  }, []);
+
   // Subscribe to Firebase Auth state on mount
   useEffect(() => {
-    // Check mobile redirect result if any
     checkRedirectResult().catch((err) => console.warn('Redirect check:', err));
 
     const unsubscribe = onAuthStateChange((user) => {
@@ -94,6 +139,15 @@ export default function Home() {
       }
     };
   }, []);
+
+  // Fetch quota when user logs in
+  useEffect(() => {
+    if (currentUser) {
+      refreshUserQuota();
+    } else {
+      setUserQuota(null);
+    }
+  }, [currentUser, refreshUserQuota]);
 
   // Close user dropdown on outside click
   useEffect(() => {
@@ -111,6 +165,12 @@ export default function Home() {
     const mb = bytes / (1024 * 1024);
     if (mb >= 1) return `${mb.toFixed(2)} MB`;
     return `${(bytes / 1024).toFixed(1)} KB`;
+  };
+
+  const formatCountdown = (seconds: number) => {
+    const hours = Math.floor(seconds / 3600);
+    const mins = Math.floor((seconds % 3600) / 60);
+    return `${hours}h ${mins}m`;
   };
 
   // Google Sign-In handler
@@ -137,6 +197,7 @@ export default function Home() {
     try {
       await signOutUser();
       setCurrentUser(null);
+      setUserQuota(null);
       setIsUserMenuOpen(false);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Sign-out failed.';
@@ -144,7 +205,7 @@ export default function Home() {
     }
   };
 
-  // Step 2 & 3: Fetch video metadata (Public endpoint)
+  // Fetch video metadata
   const handleFetchVideo = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
 
@@ -181,14 +242,15 @@ export default function Home() {
         setMetadata(data);
         setMetaError(null);
 
-        // Set default quality selection
-        if (data.defaultQuality) {
+        // Cap default quality to user's tier allowed max if known
+        const maxAllowed = userQuota?.maxQuality || 720;
+        if (data.defaultQuality && data.defaultQuality <= maxAllowed) {
           setSelectedQuality(data.defaultQuality);
         } else if (data.qualities && data.qualities.length > 0) {
-          setSelectedQuality(data.qualities[0].height);
+          const compatible = data.qualities.find((q: VideoQuality) => q.height <= maxAllowed);
+          setSelectedQuality(compatible ? compatible.height : data.qualities[0].height);
         }
 
-        // Reset timestamps to empty by default (Full Video download default)
         setStartTime('');
         setEndTime('');
       }
@@ -221,7 +283,6 @@ export default function Home() {
     const trimmedStart = startTime.trim();
     const trimmedEnd = endTime.trim();
 
-    // Timestamp rule: If one provided, both must be provided
     const hasStart = trimmedStart.length > 0;
     const hasEnd = trimmedEnd.length > 0;
 
@@ -230,7 +291,6 @@ export default function Home() {
       return;
     }
 
-    // Reset processing state
     setErrorMessage(null);
     setIsProcessing(true);
     setDownloadReady(false);
@@ -239,13 +299,11 @@ export default function Home() {
     setCurrentStep('Validating video URL...');
 
     try {
-      // 1. Obtain Firebase ID token
       const idToken = await user.getIdToken();
       if (!idToken) {
         throw new Error('Unable to obtain authentication token. Please sign in again.');
       }
 
-      // 2. Call protected POST /api/process
       const response = await fetch('/api/process', {
         method: 'POST',
         headers: {
@@ -263,15 +321,19 @@ export default function Home() {
       const data = await response.json();
 
       if (!response.ok) {
+        // Refresh quota so UI reflects current limits
+        refreshUserQuota();
         throw new Error(data.error || 'Failed to start video processing.');
       }
+
+      // Immediately refresh quota counter
+      refreshUserQuota();
 
       const jobId = data.jobId;
       setActiveJobId(jobId);
       setCurrentStep('Processing video...');
       setProgress(15);
 
-      // Start Polling for status
       if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
 
       pollIntervalRef.current = setInterval(async () => {
@@ -301,19 +363,25 @@ export default function Home() {
                 fileSize: statusData.fileSize,
               });
 
-              // Automatically trigger authenticated file download
               triggerDownload(jobId, statusData.fileName);
+              refreshUserQuota();
             }, 600);
           } else if (statusData.status === 'failed') {
             if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
             setIsProcessing(false);
-            setErrorMessage(statusData.error || 'Video processing failed. Please check inputs and try again.');
+
+            const refundMsg = statusData.quotaRefunded
+              ? ' (Your trim quota was not deducted - 1 trim restored).'
+              : '';
+            setErrorMessage((statusData.error || 'Video processing failed.') + refundMsg);
+            refreshUserQuota();
           }
         } catch (pollErr: unknown) {
           if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
           setIsProcessing(false);
           const msg = pollErr instanceof Error ? pollErr.message : 'Error polling status';
           setErrorMessage(msg);
+          refreshUserQuota();
         }
       }, 1000);
     } catch (err: unknown) {
@@ -323,7 +391,6 @@ export default function Home() {
     }
   };
 
-  // Download button clicked: check auth first, sign in if needed, then download
   const handleStartDownload = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -332,17 +399,14 @@ export default function Home() {
       return;
     }
 
-    // If not authenticated, initiate Google Sign-In first
     if (!currentUser) {
       const user = await handleGoogleSignIn();
       if (user) {
-        // Authenticated! Automatically proceed with existing configuration
         await executeDownloadWithUser(user);
       }
       return;
     }
 
-    // Authenticated: proceed
     await executeDownloadWithUser(currentUser);
   };
 
@@ -355,34 +419,85 @@ export default function Home() {
     setActiveJobId(null);
   };
 
+  const isDaily = userQuota?.quotaCycle !== 'monthly';
+  const cycleName = isDaily ? 'Daily' : 'Monthly';
+  const cycleLabel = isDaily ? 'daily' : 'monthly';
+  const limitCount = userQuota?.quotaLimit ?? userQuota?.dailyLimit ?? 3;
+  const remainingCount = userQuota?.remainingQuota ?? userQuota?.remainingToday ?? 3;
+
+  const isLimitReached = Boolean(
+    currentUser &&
+      userQuota &&
+      remainingCount === 0 &&
+      userQuota.bonusCredits === 0
+  );
+
+  const isQualityRestricted = Boolean(
+    metadata &&
+      userQuota &&
+      typeof selectedQuality === 'number' &&
+      selectedQuality > userQuota.maxQuality
+  );
+
   return (
     <div className="min-h-screen flex flex-col bg-white text-neutral-900 font-sans">
       {/* Header */}
-      <header className="border-b border-neutral-200 py-3.5 px-6 md:px-12 flex items-center justify-between">
+      <header className="border-b border-neutral-200 py-3.5 px-6 md:px-12 flex items-center justify-between sticky top-0 bg-white/95 backdrop-blur-xs z-30">
         <div className="flex items-center gap-6">
-          <Link href="/" className="text-xl font-bold tracking-tight text-black">ClipDown</Link>
-          <nav className="hidden md:flex items-center gap-4 text-xs font-medium text-neutral-600">
+          <Link href="/" className="text-xl font-bold tracking-tight text-black flex items-center gap-2">
+            <div className="w-7 h-7 rounded-lg bg-neutral-900 text-white flex items-center justify-center font-bold text-xs">
+              <svg className="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24">
+                <polygon points="6 3 20 12 6 21 6 3" />
+              </svg>
+            </div>
+            <span>ClipDown</span>
+          </Link>
+          <nav className="hidden md:flex items-center gap-5 text-xs font-medium text-neutral-600">
+            <Link href="/" className="text-neutral-900 font-semibold transition-colors">
+              Downloader
+            </Link>
+            <Link href="/pricing" className="hover:text-neutral-900 transition-colors font-medium">
+              Pricing &amp; Plans
+            </Link>
             <Link href="/policies" className="hover:text-neutral-900 transition-colors">
               Policies
             </Link>
             <Link href="/terms" className="hover:text-neutral-900 transition-colors">
-              Terms &amp; Conditions
+              Terms
             </Link>
             <Link href="/privacy" className="hover:text-neutral-900 transition-colors">
               Privacy
-            </Link>
-            <Link href="/contact" className="hover:text-neutral-900 transition-colors">
-              Contact Us
             </Link>
           </nav>
         </div>
 
         {/* Auth Section in Header */}
         <div className="flex items-center gap-3">
+          {/* Quota Badge for signed in users */}
+          {currentUser && userQuota && (
+            <Link
+              href="/pricing"
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-neutral-200 bg-neutral-50 hover:bg-neutral-100 text-[11px] font-medium text-neutral-700 transition-colors"
+              title={
+                isDaily
+                  ? `Resets in ${formatCountdown(userQuota.secondsUntilReset)} (00:00 UTC)`
+                  : 'Resets on the 1st of next month'
+              }
+            >
+              <span
+                className={`w-1.5 h-1.5 rounded-full ${
+                  remainingCount > 0 ? 'bg-emerald-500' : 'bg-red-500'
+                }`}
+              ></span>
+              <span>
+                {remainingCount}/{limitCount} {cycleLabel} trims
+              </span>
+            </Link>
+          )}
+
           {isAuthLoading ? (
             <div className="w-8 h-8 rounded-full bg-neutral-100 animate-pulse"></div>
           ) : currentUser ? (
-            // Authenticated: Show profile picture & dropdown menu
             <div className="relative" ref={userMenuRef}>
               <button
                 type="button"
@@ -417,13 +532,30 @@ export default function Home() {
 
               {/* Dropdown Menu */}
               {isUserMenuOpen && (
-                <div className="absolute right-0 mt-2 w-56 bg-white border border-neutral-200 rounded-lg shadow-sm py-2 z-50">
+                <div className="absolute right-0 mt-2 w-60 bg-white border border-neutral-200 rounded-xl shadow-lg py-2 z-50">
                   <div className="px-4 py-2 border-b border-neutral-100">
                     <p className="text-xs font-semibold text-neutral-900 truncate">
-                      {currentUser.displayName || 'Signed in'}
+                      {currentUser.displayName || 'Account'}
                     </p>
                     <p className="text-[11px] text-neutral-500 truncate mt-0.5">{currentUser.email}</p>
+                    {userQuota && (
+                      <div className="mt-2 pt-2 border-t border-neutral-100 flex items-center justify-between text-[11px]">
+                        <span className="text-neutral-500">Plan:</span>
+                        <span className="font-semibold text-neutral-900 uppercase">
+                          {userQuota.tierName}
+                        </span>
+                      </div>
+                    )}
                   </div>
+
+                  <Link
+                    href="/pricing"
+                    onClick={() => setIsUserMenuOpen(false)}
+                    className="block px-4 py-2 text-xs text-neutral-700 hover:bg-neutral-50 transition-colors"
+                  >
+                    View Pricing &amp; Top-Ups
+                  </Link>
+
                   <button
                     type="button"
                     onClick={handleSignOut}
@@ -435,7 +567,6 @@ export default function Home() {
               )}
             </div>
           ) : (
-            // Logged Out: Show Sign in with Google button
             <button
               type="button"
               disabled={isSigningIn}
@@ -467,17 +598,46 @@ export default function Home() {
       </header>
 
       {/* Main Section */}
-      <main className="flex-1 flex flex-col items-center justify-center px-4 py-12 md:py-16">
+      <main className="flex-1 flex flex-col items-center justify-center px-4 py-10 md:py-14">
         <div className="w-full max-w-xl mx-auto space-y-6">
-          {/* Heading & Subtitle */}
-          <div className="text-center mb-6">
+          {/* Heading */}
+          <div className="text-center mb-4">
             <h1 className="text-3xl md:text-4xl font-bold tracking-tight text-neutral-900 mb-2">
               Download Any Clip You Want
             </h1>
             <p className="text-sm md:text-base text-neutral-600">
-              Paste a video link, select quality and preferred time range, or download the full video.
+              Paste a video link, select quality and start/end timestamps, and download pristine MP4 clips.
             </p>
           </div>
+
+          {/* Signed-in Quota Status Card */}
+          {currentUser && userQuota && (
+            <div className="p-3.5 bg-neutral-50 border border-neutral-200 rounded-xl flex items-center justify-between text-xs">
+              <div className="space-y-0.5">
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider bg-neutral-900 text-white">
+                    {userQuota.tierName}
+                  </span>
+                  <span className="font-medium text-neutral-800">
+                    <strong>{remainingCount}</strong> of {limitCount} {cycleLabel} trims remaining
+                  </span>
+                </div>
+                <p className="text-[11px] text-neutral-500">
+                  {isDaily
+                    ? `Resets in ${formatCountdown(userQuota.secondsUntilReset)} (00:00 UTC)`
+                    : 'Resets on the 1st of next month'}
+                  {userQuota.bonusCredits > 0 && ` • +${userQuota.bonusCredits} bonus credits available`}
+                </p>
+              </div>
+              <Link
+                href="/pricing"
+                className="text-xs font-semibold text-neutral-900 hover:text-black underline flex items-center gap-1"
+              >
+                <span>Upgrade</span>
+                <span>→</span>
+              </Link>
+            </div>
+          )}
 
           {/* Auth Error Banner if sign-in fails */}
           {authError && (
@@ -493,9 +653,12 @@ export default function Home() {
             </div>
           )}
 
-          {/* Section A: Video URL */}
+          {/* Section A: URL Input Form */}
           <div className="space-y-2">
-            <label htmlFor="video-url" className="block text-xs font-semibold uppercase tracking-wider text-neutral-700">
+            <label
+              htmlFor="video-url"
+              className="block text-xs font-semibold uppercase tracking-wider text-neutral-700"
+            >
               Video URL
             </label>
             <div className="flex flex-col sm:flex-row gap-2">
@@ -539,7 +702,7 @@ export default function Home() {
             {metaError && <p className="text-xs text-red-600 pt-1">{metaError}</p>}
           </div>
 
-          {/* Section B: Video Preview (Only displayed after successfully fetching metadata) */}
+          {/* Section B: Video Preview */}
           {metadata && (
             <div className="border border-neutral-200 rounded-lg p-4 bg-neutral-50 space-y-3">
               <div className="flex items-start gap-3.5">
@@ -569,35 +732,55 @@ export default function Home() {
                 <div className="pt-2 border-t border-neutral-200/80">
                   <p className="text-[11px] font-medium text-neutral-500 mb-1.5">Available Resolutions:</p>
                   <div className="flex flex-wrap gap-1.5">
-                    {metadata.qualities.map((q) => (
-                      <span
-                        key={q.height}
-                        className={`text-[11px] px-2 py-0.5 rounded border ${
-                          selectedQuality === q.height
-                            ? 'bg-neutral-900 text-white border-neutral-900 font-medium'
-                            : 'bg-white text-neutral-700 border-neutral-300'
-                        }`}
-                      >
-                        {q.label}
-                      </span>
-                    ))}
+                    {metadata.qualities.map((q) => {
+                      const isProRes = q.height > (userQuota?.maxQuality || 720);
+                      return (
+                        <button
+                          key={q.height}
+                          type="button"
+                          onClick={() => setSelectedQuality(q.height)}
+                          className={`text-[11px] px-2 py-0.5 rounded border transition-colors cursor-pointer flex items-center gap-1 ${
+                            selectedQuality === q.height
+                              ? 'bg-neutral-900 text-white border-neutral-900 font-medium'
+                              : 'bg-white text-neutral-700 border-neutral-300 hover:border-neutral-400'
+                          }`}
+                        >
+                          <span>{q.label}</span>
+                          {isProRes && (
+                            <span className="text-[9px] font-bold px-1 rounded bg-amber-100 text-amber-800">
+                              PRO
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
               )}
             </div>
           )}
 
-          {/* Section C: Download Settings (Quality & Timestamps) */}
+          {/* Section C: Download Settings */}
           {metadata && (
             <form onSubmit={handleStartDownload} className="space-y-5">
               {/* Quality Dropdown */}
               <div>
-                <label
-                  htmlFor="quality-selector"
-                  className="block text-xs font-semibold uppercase tracking-wider text-neutral-700 mb-1.5"
-                >
-                  Video Quality
-                </label>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label
+                    htmlFor="quality-selector"
+                    className="block text-xs font-semibold uppercase tracking-wider text-neutral-700"
+                  >
+                    Video Quality
+                  </label>
+                  {isQualityRestricted && (
+                    <Link
+                      href="/pricing"
+                      className="text-[11px] text-amber-700 font-semibold hover:underline"
+                    >
+                      Requires Creator Pro Plan →
+                    </Link>
+                  )}
+                </div>
                 <select
                   id="quality-selector"
                   disabled={isProcessing}
@@ -605,12 +788,20 @@ export default function Home() {
                   onChange={(e) => setSelectedQuality(parseInt(e.target.value, 10))}
                   className="w-full px-3.5 py-2.5 text-sm md:text-base bg-white border border-neutral-300 rounded-lg text-neutral-900 focus:outline-none focus:ring-2 focus:ring-neutral-900 focus:border-transparent transition-colors disabled:bg-neutral-50"
                 >
-                  {metadata.qualities.map((q) => (
-                    <option key={q.height} value={q.height}>
-                      {q.label} {q.formattedSize ? `(${q.formattedSize})` : ''}
-                    </option>
-                  ))}
+                  {metadata.qualities.map((q) => {
+                    const isProRes = q.height > (userQuota?.maxQuality || 720);
+                    return (
+                      <option key={q.height} value={q.height}>
+                        {q.label} {q.formattedSize ? `(${q.formattedSize})` : ''} {isProRes ? '— [PRO]' : ''}
+                      </option>
+                    );
+                  })}
                 </select>
+                {isQualityRestricted && (
+                  <p className="mt-1 text-xs text-amber-700">
+                    1080p and 4K UHD resolutions require Creator Pro. On Starter (Free), please select 720p HD or upgrade.
+                  </p>
+                )}
               </div>
 
               {/* Timestamp Inputs */}
@@ -660,7 +851,7 @@ export default function Home() {
                 </div>
 
                 <div className="flex items-center justify-between pt-1 text-xs text-neutral-500">
-                  <p>Leave both fields empty to download the entire video.</p>
+                  <p>Leave both fields empty to download the full video.</p>
                   {(startTime || endTime) && (
                     <button
                       type="button"
@@ -681,7 +872,7 @@ export default function Home() {
                 <button
                   id="download-button"
                   type="submit"
-                  disabled={isProcessing}
+                  disabled={isProcessing || isLimitReached}
                   className="w-full py-3.5 px-6 rounded-lg text-sm md:text-base font-semibold text-white bg-black hover:bg-neutral-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-neutral-900 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 cursor-pointer"
                 >
                   {isProcessing ? (
@@ -689,6 +880,8 @@ export default function Home() {
                       <span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
                       <span>{currentStep || 'Processing video...'}</span>
                     </>
+                  ) : isLimitReached ? (
+                    <span>{cycleName} Limit Reached ({limitCount}/{limitCount} Used)</span>
                   ) : !currentUser ? (
                     <span className="flex items-center gap-2">
                       <svg className="w-4 h-4" viewBox="0 0 24 24">
@@ -712,9 +905,22 @@ export default function Home() {
                       <span>Sign in with Google & Download</span>
                     </span>
                   ) : (
-                    <span>Download Video</span>
+                    <span>Download Video Clip</span>
                   )}
                 </button>
+
+                {isLimitReached && (
+                  <div className="mt-2 text-center text-xs text-neutral-600">
+                    <span>
+                      {isDaily
+                        ? 'You have reached your daily quota. Resets at 00:00 UTC. '
+                        : 'You have reached your monthly trim quota. Resets next month. '}
+                    </span>
+                    <Link href="/pricing" className="font-semibold text-neutral-900 underline hover:text-black">
+                      Upgrade Plan or Top Up Credits →
+                    </Link>
+                  </div>
+                )}
               </div>
             </form>
           )}
@@ -768,20 +974,32 @@ export default function Home() {
             </div>
           )}
 
-          {/* Error Message */}
+          {/* Error Message with Automatic Refund Notice */}
           {errorMessage && (
             <div className="p-4 border border-red-200 rounded-lg bg-red-50 text-red-700 text-xs flex flex-col gap-2">
               <div className="flex items-start gap-2">
-                <span className="font-bold flex-shrink-0">Error:</span>
+                <span className="font-bold flex-shrink-0">Notice:</span>
                 <span className="flex-1">{errorMessage}</span>
               </div>
-              <button
-                type="button"
-                onClick={() => setErrorMessage(null)}
-                className="self-end text-[11px] underline hover:text-red-900 cursor-pointer"
-              >
-                Dismiss
-              </button>
+              <div className="flex items-center justify-between pt-1">
+                {errorMessage.includes('require') || errorMessage.includes('limit') ? (
+                  <Link
+                    href="/pricing"
+                    className="text-[11px] font-semibold text-neutral-900 underline hover:text-black"
+                  >
+                    View Pricing &amp; Passes →
+                  </Link>
+                ) : (
+                  <span></span>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setErrorMessage(null)}
+                  className="text-[11px] underline hover:text-red-900 cursor-pointer"
+                >
+                  Dismiss
+                </button>
+              </div>
             </div>
           )}
         </div>
@@ -789,8 +1007,6 @@ export default function Home() {
 
       {/* Footer */}
       <Footer />
-
-
     </div>
   );
 }

@@ -52,6 +52,8 @@ class JobManager {
     isFullVideo: boolean;
     selectedQuality?: number;
     userId?: string;
+    quotaConsumed?: boolean;
+    quotaSource?: 'daily' | 'monthly' | 'bonus';
   }): Job {
     const id = uuidv4();
     const job: Job = {
@@ -69,6 +71,8 @@ class JobManager {
       step: 'Queued for processing...',
       progress: 0,
       createdAt: Date.now(),
+      quotaConsumed: params.quotaConsumed,
+      quotaSource: params.quotaSource,
     };
 
     this.jobs.set(id, job);

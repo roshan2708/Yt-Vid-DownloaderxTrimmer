@@ -4,6 +4,7 @@ import path from 'path';
 import { Job, VideoMetadata, VideoQuality } from '../types';
 import { formatBytes, formatSeconds, getQualityLabel } from '../utils/validator';
 import { getTempDir, jobManager, TEMP_DIR } from './jobManager';
+import { quotaService } from './quotaService';
 
 // Candidate paths for binaries
 const localBinDir = path.resolve(process.cwd(), 'bin');
@@ -944,11 +945,17 @@ export async function processVideoJob(jobId: string): Promise<void> {
       }
     }
 
+        // Edge Case: Automatically refund quota if consumed
+    if (job?.quotaConsumed && job?.userId) {
+      quotaService.refundQuota(job.userId, job.quotaSource || 'daily').catch((refundErr) => console.error('[ClipDown] Failed to refund quota:', refundErr));
+    }
+
     jobManager.updateJob(jobId, {
       status: 'failed',
       step: 'Processing failed.',
       progress: 0,
       error: errorMsg || 'An unexpected error occurred while processing the video.',
+      quotaRefunded: job?.quotaConsumed ? true : false,
     });
   }
 }

@@ -43,13 +43,18 @@ export default function Footer() {
                 </Link>
               </li>
               <li>
+                <Link href="/pricing" className="hover:text-neutral-900 transition-colors font-medium text-neutral-800">
+                  Pricing &amp; Plans
+                </Link>
+              </li>
+              <li>
                 <Link href="/policies" className="hover:text-neutral-900 transition-colors">
-                  Policies & Legal Center
+                  Policies &amp; Legal Center
                 </Link>
               </li>
               <li>
                 <Link href="/contact" className="hover:text-neutral-900 transition-colors">
-                  Contact Us & Support
+                  Contact Us &amp; Support
                 </Link>
               </li>
             </ul>
@@ -58,37 +63,38 @@ export default function Footer() {
           {/* Policies & Legal */}
           <div className="space-y-3">
             <p className="font-semibold text-neutral-900 uppercase tracking-wider text-[11px]">
-              Legal & Compliance
+              Legal &amp; Trust
             </p>
             <ul className="space-y-2">
+              <li>
+                <Link href="/terms" className="hover:text-neutral-900 transition-colors">
+                  Terms of Service
+                </Link>
+              </li>
               <li>
                 <Link href="/privacy" className="hover:text-neutral-900 transition-colors">
                   Privacy Policy
                 </Link>
               </li>
               <li>
-                <Link href="/terms" className="hover:text-neutral-900 transition-colors">
-                  Terms & Conditions
-                </Link>
-              </li>
-              <li>
-                <Link href="/policies#dmca" className="hover:text-neutral-900 transition-colors">
-                  DMCA & Fair Use
+                <Link href="/policies" className="hover:text-neutral-900 transition-colors">
+                  Fair Use &amp; DMCA
                 </Link>
               </li>
             </ul>
           </div>
         </div>
 
-        {/* Bottom bar */}
-        <div className="pt-8 border-t border-neutral-100 flex flex-col sm:flex-row items-center justify-between gap-4 text-[11px] text-neutral-500">
-          <p>© 2026 ClipDown. All rights reserved.</p>
-          <p className="text-center sm:text-right max-w-md">
-            Disclaimer: ClipDown is an independent utility and is not affiliated with, sponsored by, or endorsed by YouTube, Google LLC, or any other video hosting platform.
+        {/* Disclaimer & Copyright */}
+        <div className="pt-6 border-t border-neutral-100 flex flex-col sm:flex-row items-center justify-between gap-4 text-[11px] text-neutral-400">
+          <p>
+            &copy; 2026 ClipDown. All rights reserved. Built for creator workflows.
+          </p>
+          <p className="text-center sm:text-right">
+            Zero permanent media retention &bull; Encrypted connections
           </p>
         </div>
       </div>
     </footer>
   );
 }
-

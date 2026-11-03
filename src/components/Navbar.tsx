@@ -38,6 +38,12 @@ export default function Navbar() {
             Downloader
           </Link>
           <Link
+            href="/pricing"
+            className="hover:text-neutral-900 transition-colors py-1 font-semibold text-neutral-800"
+          >
+            Pricing &amp; Plans
+          </Link>
+          <Link
             href="/policies"
             className="hover:text-neutral-900 transition-colors py-1"
           >
@@ -47,7 +53,7 @@ export default function Navbar() {
             href="/terms"
             className="hover:text-neutral-900 transition-colors py-1"
           >
-            Terms & Conditions
+            Terms &amp; Conditions
           </Link>
           <Link
             href="/privacy"
@@ -66,6 +72,12 @@ export default function Navbar() {
         {/* Desktop Action */}
         <div className="hidden md:flex items-center gap-3">
           <Link
+            href="/pricing"
+            className="inline-flex items-center justify-center px-3.5 py-1.5 text-xs font-semibold rounded-lg border border-neutral-300 text-neutral-800 hover:bg-neutral-50 transition-colors"
+          >
+            View Pricing
+          </Link>
+          <Link
             href="/"
             className="inline-flex items-center justify-center px-4 py-2 text-xs font-semibold rounded-lg bg-neutral-900 text-white hover:bg-neutral-800 transition-colors shadow-xs"
           >
@@ -78,7 +90,7 @@ export default function Navbar() {
           <button
             type="button"
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="p-2 rounded-lg text-neutral-700 hover:text-neutral-900 hover:bg-neutral-100 focus:outline-none"
+            className="p-2 rounded-lg text-neutral-700 hover:text-neutral-900 hover:bg-neutral-100 focus:outline-none cursor-pointer"
             aria-label="Toggle navigation menu"
           >
             {mobileMenuOpen ? (
@@ -105,6 +117,13 @@ export default function Navbar() {
             Downloader
           </Link>
           <Link
+            href="/pricing"
+            onClick={() => setMobileMenuOpen(false)}
+            className="block px-3 py-2 rounded-md text-sm font-semibold text-neutral-900 hover:bg-neutral-50"
+          >
+            Pricing &amp; Plans
+          </Link>
+          <Link
             href="/policies"
             onClick={() => setMobileMenuOpen(false)}
             className="block px-3 py-2 rounded-md text-sm font-medium text-neutral-800 hover:bg-neutral-50"
@@ -116,7 +135,7 @@ export default function Navbar() {
             onClick={() => setMobileMenuOpen(false)}
             className="block px-3 py-2 rounded-md text-sm font-medium text-neutral-800 hover:bg-neutral-50"
           >
-            Terms & Conditions
+            Terms &amp; Conditions
           </Link>
           <Link
             href="/privacy"
@@ -146,4 +165,3 @@ export default function Navbar() {
     </header>
   );
 }
-

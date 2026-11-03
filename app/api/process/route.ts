@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { validateVideoUrl, validateTimeRange } from '@/server/utils/validator';
 import { fetchVideoMetadata, processVideoJob } from '@/server/services/videoService';
 import { jobManager } from '@/server/services/jobManager';
+import { quotaService } from '@/server/services/quotaService';
 import { verifyFirebaseIdToken } from '@/server/utils/firebaseAdmin';
 
 const BACKEND_URL = process.env.BACKEND_URL;
@@ -109,6 +110,29 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: timeCheck.error }, { status: 400 });
     }
 
+    // Enforce Quota and Restrictions
+    const quotaCheck = await quotaService.validateAndReserveQuota({
+      userId: user.uid,
+      email: user.email,
+      requestedQuality: selectedQuality,
+      startSeconds: timeCheck.startSeconds,
+      endSeconds: timeCheck.endSeconds,
+      isFullVideo: timeCheck.isFullVideo,
+      sourceDuration: videoDuration,
+    });
+
+    if (!quotaCheck.allowed) {
+      const statusCode = quotaCheck.code === 'LIMIT_REACHED' ? 429 : 403;
+      return NextResponse.json(
+        {
+          error: quotaCheck.reason,
+          code: quotaCheck.code,
+          resetInSeconds: quotaCheck.resetInSeconds,
+        },
+        { status: statusCode }
+      );
+    }
+
     // Create Job
     const job = jobManager.createJob({
       url: urlCheck.normalizedUrl || url,
@@ -120,6 +144,8 @@ export async function POST(request: NextRequest) {
       isFullVideo: timeCheck.isFullVideo,
       selectedQuality,
       userId: user.uid,
+      quotaConsumed: true,
+      quotaSource: quotaCheck.consumedFrom,
     });
 
     // Start background processing
@@ -133,6 +159,7 @@ export async function POST(request: NextRequest) {
       step: 'Validating video URL.',
       isFullVideo: job.isFullVideo,
       selectedQuality: job.selectedQuality,
+      quotaConsumedFrom: quotaCheck.consumedFrom,
     });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Failed to initiate video processing.';

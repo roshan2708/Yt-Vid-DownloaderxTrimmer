@@ -3,13 +3,13 @@ import dotenv from 'dotenv';
 import express, { Request, Response } from 'express';
 import rateLimit from 'express-rate-limit';
 import fs from 'fs';
+import path from 'path';
 import { AuthRequest, requireAuth } from './middleware/authMiddleware';
 import { jobManager } from './services/jobManager';
+import { quotaService } from './services/quotaService';
 import { fetchVideoMetadata, processVideoJob } from './services/videoService';
 import { getFirebaseAdminApp } from './utils/firebaseAdmin';
 import { validateTimeRange, validateVideoUrl } from './utils/validator';
-
-import path from 'path';
 
 // Load .env and .env.local
 dotenv.config();
@@ -44,7 +44,7 @@ const generalLimiter = rateLimit({
 
 const processLimiter = rateLimit({
   windowMs: 10 * 60 * 1000, // 10 minutes
-  max: 20, // Max 20 video process requests per 10 minutes per IP
+  max: 30, // Max 30 video process requests per 10 minutes per IP
   message: { error: 'Video processing rate limit reached. Please wait a few minutes before submitting more jobs.' },
   standardHeaders: true,
   legacyHeaders: false,
@@ -55,6 +55,25 @@ app.use(generalLimiter);
 // Health check
 app.get('/health', (_req: Request, res: Response) => {
   res.json({ status: 'ok', uptime: process.uptime() });
+});
+
+/**
+ * GET /api/user/quota
+ * Protected: Returns user's tier, trims used today, daily limit, remaining trims, and seconds until UTC reset
+ */
+app.get('/api/user/quota', requireAuth, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const userId = req.user?.uid;
+    if (!userId) {
+      res.status(401).json({ error: 'Unauthorized: Missing user identity.' });
+      return;
+    }
+    const quota = await quotaService.getUserQuota(userId, req.user?.email);
+    res.json(quota);
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Failed to retrieve user quota.';
+    res.status(500).json({ error: message });
+  }
 });
 
 /**
@@ -83,12 +102,17 @@ app.post('/api/validate', async (req: Request, res: Response): Promise<void> => 
 /**
  * POST /api/process
  * Protected: Requires verified Firebase ID Token in Authorization: Bearer <token>
- * Validates inputs, creates job associated with the user, starts trimming/downloading
+ * Validates inputs, enforces daily quotas & constraints, creates job, and starts trimming
  */
 app.post('/api/process', requireAuth, processLimiter, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { url, quality, startTime, endTime } = req.body;
     const userId = req.user?.uid;
+
+    if (!userId) {
+      res.status(401).json({ error: 'Unauthorized: User ID not found.' });
+      return;
+    }
 
     // 1. Validate URL
     const urlCheck = validateVideoUrl(url);
@@ -130,7 +154,28 @@ app.post('/api/process', requireAuth, processLimiter, async (req: AuthRequest, r
       return;
     }
 
-    // 5. Create Job with authenticated user UID
+    // 5. Quota & Limits Enforcement (Edge cases handled: daily cap, duration limits, quality restrictions)
+    const quotaCheck = await quotaService.validateAndReserveQuota({
+      userId,
+      email: req.user?.email,
+      requestedQuality: selectedQuality,
+      startSeconds: timeCheck.startSeconds,
+      endSeconds: timeCheck.endSeconds,
+      isFullVideo: timeCheck.isFullVideo,
+      sourceDuration: videoDuration,
+    });
+
+    if (!quotaCheck.allowed) {
+      const statusCode = quotaCheck.code === 'LIMIT_REACHED' ? 429 : 403;
+      res.status(statusCode).json({
+        error: quotaCheck.reason,
+        code: quotaCheck.code,
+        resetInSeconds: quotaCheck.resetInSeconds,
+      });
+      return;
+    }
+
+    // 6. Create Job with authenticated user UID and quota metadata
     const job = jobManager.createJob({
       url: urlCheck.normalizedUrl || url,
       title: videoTitle,
@@ -141,9 +186,11 @@ app.post('/api/process', requireAuth, processLimiter, async (req: AuthRequest, r
       isFullVideo: timeCheck.isFullVideo,
       selectedQuality,
       userId,
+      quotaConsumed: true,
+      quotaSource: quotaCheck.consumedFrom,
     });
 
-    // 6. Start processing in background
+    // 7. Start processing in background
     processVideoJob(job.id).catch((err) => {
       console.error(`Unhandled error in processVideoJob ${job.id}:`, err);
     });
@@ -154,6 +201,7 @@ app.post('/api/process', requireAuth, processLimiter, async (req: AuthRequest, r
       step: 'Validating video URL.',
       isFullVideo: job.isFullVideo,
       selectedQuality: job.selectedQuality,
+      quotaConsumedFrom: quotaCheck.consumedFrom,
     });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Failed to initiate video processing.';
@@ -184,6 +232,7 @@ app.get('/api/status/:jobId', (req: Request, res: Response): void => {
     fileSize: job.fileSize,
     isFullVideo: job.isFullVideo,
     selectedQuality: job.selectedQuality,
+    quotaRefunded: job.quotaRefunded || false,
   });
 });
 
