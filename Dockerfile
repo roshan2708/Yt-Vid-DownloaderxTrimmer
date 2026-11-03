@@ -1,8 +1,8 @@
 # ==============================================================
-# ClipDown – Production Dockerfile for Render Deployment
+# ClipDown – Production Dockerfile
 # ==============================================================
 
-FROM node:20-bookworm-slim
+FROM node:22-bookworm-slim
 
 # Install FFmpeg, Python3, and yt-dlp
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -17,11 +17,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-# Copy dependency manifests
+# Copy dependency manifests and scripts
 COPY package*.json ./
+COPY scripts ./scripts
 
 # Install dependencies (clean install)
-RUN npm ci
+RUN npm ci --ignore-scripts
 
 # Copy application source
 COPY . .
@@ -30,7 +31,7 @@ COPY . .
 ENV NODE_ENV=production
 RUN npm run build
 
-# Render assigns a dynamic port via $PORT (defaults to 10000)
+# Ports configuration
 ENV PORT=10000
 ENV BACKEND_PORT=4000
 ENV BACKEND_URL=http://127.0.0.1:4000
