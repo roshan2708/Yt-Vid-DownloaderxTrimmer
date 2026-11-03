@@ -3,7 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import { Job, VideoMetadata, VideoQuality } from '../types';
 import { formatBytes, formatSeconds, getQualityLabel } from '../utils/validator';
-import { jobManager, TEMP_DIR } from './jobManager';
+import { getTempDir, jobManager, TEMP_DIR } from './jobManager';
 
 // Candidate paths for binaries
 const localBinDir = path.resolve(process.cwd(), 'bin');
@@ -725,7 +725,8 @@ export async function processVideoJob(jobId: string): Promise<void> {
   const baseFileName = sanitizeFilename(job.title);
   const suffix = job.isFullVideo ? 'full' : 'clip';
   const finalFileName = `${baseFileName}_${suffix}_${job.id.substring(0, 8)}.mp4`;
-  const outputPath = path.join(TEMP_DIR, `video_${job.id}.mp4`);
+  const targetDir = getTempDir(job.isFullVideo);
+  const outputPath = path.join(targetDir, `video_${job.id}.mp4`);
 
   try {
     let success = false;
@@ -775,7 +776,7 @@ export async function processVideoJob(jobId: string): Promise<void> {
           }
 
           const res = await execProcess(ffmpegBin, ffmpegArgs, {
-            timeoutMs: 300000,
+            timeoutMs: job.isFullVideo ? 900000 : 300000,
             onProgress: () => {
               jobManager.updateJob(jobId, { progress: 80, step: 'Processing and merging clip...' });
             },
@@ -809,9 +810,17 @@ export async function processVideoJob(jobId: string): Promise<void> {
         '--merge-output-format',
         'mp4',
         '--concurrent-fragments',
-        '4',
+        job.isFullVideo ? '6' : '4',
+        '--buffer-size',
+        '16M',
+        '--http-chunk-size',
+        '10M',
+        '--retries',
+        '10',
+        '--fragment-retries',
+        '10',
         '--postprocessor-args',
-        'ffmpeg:-threads 2 -movflags +faststart',
+        'ffmpeg:-threads 2 -c copy -movflags +faststart',
         ...getYtDlpCommonArgs(),
         '--ffmpeg-location',
         path.dirname(ffmpegBin),
@@ -827,7 +836,7 @@ export async function processVideoJob(jobId: string): Promise<void> {
       let ytDlpError = '';
       try {
         const res = await execProcess(ytDlpBin, ytDlpArgs, {
-          timeoutMs: 300000,
+          timeoutMs: job.isFullVideo ? 900000 : 300000,
           onProgress: (text) => {
             if (text.includes('[download]')) {
               const match = text.match(/(\d+(\.\d+)?)%/);

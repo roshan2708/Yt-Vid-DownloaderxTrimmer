@@ -3,8 +3,13 @@ import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import { Job } from '../types';
 
-// High-speed RAM disk support: On Linux, use /dev/shm for near-instant I/O without SSD wear
-export const TEMP_DIR = (() => {
+export const DISK_TEMP_DIR = path.resolve(process.cwd(), 'server', 'temp');
+if (!fs.existsSync(DISK_TEMP_DIR)) {
+  fs.mkdirSync(DISK_TEMP_DIR, { recursive: true });
+}
+
+// High-speed RAM disk support: On Linux, use /dev/shm for near-instant I/O on clips
+export const RAM_TEMP_DIR = (() => {
   if (process.platform === 'linux' && fs.existsSync('/dev/shm')) {
     const shmDir = path.join('/dev/shm', 'clipdown_temp');
     try {
@@ -16,12 +21,15 @@ export const TEMP_DIR = (() => {
       // Fallback if permission denied
     }
   }
-  const diskTemp = path.resolve(process.cwd(), 'server', 'temp');
-  if (!fs.existsSync(diskTemp)) {
-    fs.mkdirSync(diskTemp, { recursive: true });
-  }
-  return diskTemp;
+  return DISK_TEMP_DIR;
 })();
+
+export const TEMP_DIR = RAM_TEMP_DIR;
+
+export function getTempDir(isFullVideo = false): string {
+  // Full videos go to SSD disk to protect RAM; clips go to lightning-fast RAM disk
+  return isFullVideo ? DISK_TEMP_DIR : RAM_TEMP_DIR;
+}
 
 class JobManager {
   private jobs = new Map<string, Job>();
@@ -102,25 +110,29 @@ class JobManager {
   }
 
   public cleanOrphanedFiles(): void {
-    try {
-      if (!fs.existsSync(TEMP_DIR)) return;
-      const files = fs.readdirSync(TEMP_DIR);
-      const now = Date.now();
-      for (const file of files) {
-        if (file === '.gitkeep') continue;
-        const filePath = path.join(TEMP_DIR, file);
-        try {
-          const stats = fs.statSync(filePath);
-          // If file is older than 30 minutes, remove it
-          if (now - stats.mtimeMs > this.EXPIRY_MS) {
-            fs.unlinkSync(filePath);
+    const dirsToClean = new Set([DISK_TEMP_DIR, RAM_TEMP_DIR]);
+    const now = Date.now();
+
+    for (const dir of dirsToClean) {
+      try {
+        if (!fs.existsSync(dir)) continue;
+        const files = fs.readdirSync(dir);
+        for (const file of files) {
+          if (file === '.gitkeep') continue;
+          const filePath = path.join(dir, file);
+          try {
+            const stats = fs.statSync(filePath);
+            // If file is older than 30 minutes, remove it
+            if (now - stats.mtimeMs > this.EXPIRY_MS) {
+              fs.unlinkSync(filePath);
+            }
+          } catch {
+            // ignore stat errors
           }
-        } catch {
-          // ignore stat errors
         }
+      } catch (err) {
+        console.error(`Error cleaning orphaned files in ${dir}:`, err);
       }
-    } catch (err) {
-      console.error('Error cleaning orphaned files:', err);
     }
   }
 
