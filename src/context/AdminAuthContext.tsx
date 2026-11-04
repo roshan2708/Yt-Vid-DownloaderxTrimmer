@@ -56,7 +56,16 @@ export function AdminAuthProvider({ children }: { children: React.ReactNode }) {
       const claims = tokenResult.claims;
 
       let verifiedRole: AdminRole | null = null;
-      if (claims.role === 'superadmin') {
+      const initialSuperAdmin = (
+        process.env.NEXT_PUBLIC_INITIAL_SUPERADMIN_EMAIL || 'paisaan.dev@gmail.com'
+      )
+        .toLowerCase()
+        .trim();
+
+      // 1. Initial Superadmin verification
+      if (user.email && user.email.toLowerCase().trim() === initialSuperAdmin) {
+        verifiedRole = 'superadmin';
+      } else if (claims.role === 'superadmin') {
         verifiedRole = 'superadmin';
       } else if (claims.admin === true || claims.role === 'admin') {
         verifiedRole = 'admin';

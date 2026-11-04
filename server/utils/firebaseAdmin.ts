@@ -142,7 +142,22 @@ export async function verifyAdminToken(token: string): Promise<AdminUser | null>
     const decodedToken = await auth.verifyIdToken(token);
 
     let role: 'admin' | 'superadmin' | null = null;
-    if (decodedToken.admin === true || decodedToken.role === 'admin' || decodedToken.role === 'superadmin') {
+    const initialSuperadmin = (
+      process.env.INITIAL_SUPERADMIN_EMAIL ||
+      process.env.NEXT_PUBLIC_INITIAL_SUPERADMIN_EMAIL ||
+      'paisaan.dev@gmail.com'
+    )
+      .toLowerCase()
+      .trim();
+
+    // 1. Designated Initial Superadmin
+    if (decodedToken.email && decodedToken.email.toLowerCase().trim() === initialSuperadmin) {
+      role = 'superadmin';
+    } else if (
+      decodedToken.admin === true ||
+      decodedToken.role === 'admin' ||
+      decodedToken.role === 'superadmin'
+    ) {
       role = (decodedToken.role as 'admin' | 'superadmin') || 'admin';
     }
 

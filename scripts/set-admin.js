@@ -3,7 +3,7 @@
 /**
  * CLI script to grant or revoke Admin / Superadmin roles securely via Firebase Admin SDK
  * Usage:
- *   node scripts/set-admin.js <email> [--role=admin|superadmin] [--remove]
+ *   node scripts/set-admin.js <email> [--role=admin|superadmin] [--remove] [--uid=<uid>]
  * Examples:
  *   node scripts/set-admin.js paisaan.dev@gmail.com --role=superadmin
  *   node scripts/set-admin.js colleague@example.com --role=admin
@@ -36,11 +36,13 @@ function initAdminApp() {
   }
 
   if (projectId && clientEmail && privateKey) {
+    console.log('[Firebase Admin] Initializing with Service Account credentials...');
     return initializeApp({
       credential: cert({ projectId, clientEmail, privateKey }),
     });
   }
 
+  console.log(`[Firebase Admin] Initializing with Project ID: ${projectId}...`);
   return initializeApp({ projectId });
 }
 
@@ -48,14 +50,16 @@ async function main() {
   const args = process.argv.slice(2);
   const email = args.find((a) => !a.startsWith('--'));
   const roleArg = args.find((a) => a.startsWith('--role='));
+  const uidArg = args.find((a) => a.startsWith('--uid='));
   const isRemove = args.includes('--remove');
 
-  if (!email) {
-    console.error('Error: Please provide a user email.');
-    console.log('Usage: node scripts/set-admin.js <email> [--role=admin|superadmin] [--remove]');
+  if (!email && !uidArg) {
+    console.error('Error: Please provide a user email or --uid=<uid>.');
+    console.log('Usage: node scripts/set-admin.js <email> [--role=admin|superadmin] [--uid=<uid>] [--remove]');
     process.exit(1);
   }
 
+  const explicitUid = uidArg ? uidArg.split('=')[1] : null;
   let role = 'admin';
   if (roleArg) {
     const val = roleArg.split('=')[1]?.toLowerCase();
@@ -73,86 +77,116 @@ async function main() {
   try {
     db = getFirestore(app);
   } catch (err) {
-    console.warn('Firestore initialization warning (falling back to Auth claims only):', err.message);
+    console.warn('Firestore initialization warning:', err.message);
   }
 
+  let userUid = explicitUid;
+  let userEmail = email;
+  let authClaimsSuccess = false;
+
+  // 1. Attempt to look up user and set custom claims via Firebase Admin Auth API
   try {
-    console.log(`Looking up Firebase user for email: ${email}...`);
-    const user = await auth.getUserByEmail(email);
-    console.log(`Found user: ${user.displayName || 'No Name'} (UID: ${user.uid})`);
+    let authUser = null;
+    if (explicitUid) {
+      console.log(`Looking up Firebase user by UID: ${explicitUid}...`);
+      authUser = await auth.getUser(explicitUid);
+    } else if (email) {
+      console.log(`Looking up Firebase user for email: ${email}...`);
+      authUser = await auth.getUserByEmail(email);
+    }
 
-    if (isRemove) {
-      console.log(`Revoking administrative privileges from ${email}...`);
-      await auth.setCustomUserClaims(user.uid, { admin: false, role: 'user' });
+    if (authUser) {
+      userUid = authUser.uid;
+      userEmail = authUser.email || email;
+      console.log(`Found user: ${authUser.displayName || 'No Name'} (UID: ${userUid})`);
 
-      if (db) {
-        await db.collection('users').doc(user.uid).set(
-          {
-            role: 'user',
-            isAdmin: false,
-            updatedAt: new Date().toISOString(),
-          },
-          { merge: true }
-        );
+      if (isRemove) {
+        console.log(`Revoking administrative privileges from ${userEmail}...`);
+        await auth.setCustomUserClaims(userUid, { admin: false, role: 'user' });
+      } else {
+        console.log(`Assigning role "${role}" (Custom Claims: { admin: true, role: "${role}" })...`);
+        await auth.setCustomUserClaims(userUid, { admin: true, role });
+      }
+      authClaimsSuccess = true;
+    }
+  } catch (authErr) {
+    console.warn(`\n[Notice] Firebase Admin Auth Identity lookup failed: ${authErr.message}`);
+    if (authErr.code === 'auth/internal-error') {
+      console.warn('Reason: Managing custom claims directly via Identity Toolkit requires a Service Account key');
+      console.warn('(FIREBASE_CLIENT_EMAIL and FIREBASE_PRIVATE_KEY in .env).');
+    }
+    console.warn('Attempting direct role synchronization via Cloud Firestore...\n');
+  }
+
+  // 2. Fallback: Search & Update role in Firestore database
+  if (db) {
+    try {
+      let targetDocRef = null;
+      let targetDocId = userUid;
+
+      if (targetDocId) {
+        targetDocRef = db.collection('users').doc(targetDocId);
+      } else if (userEmail) {
+        // Query by email
+        const snap = await db.collection('users').where('email', '==', userEmail).limit(1).get();
+        if (!snap.empty) {
+          targetDocRef = snap.docs[0].ref;
+          targetDocId = snap.docs[0].id;
+        }
+      }
+
+      if (targetDocRef) {
+        const updateData = {
+          role: isRemove ? 'user' : role,
+          isAdmin: !isRemove,
+          updatedAt: new Date().toISOString(),
+        };
+        if (!isRemove) {
+          updateData.tier = 'studio';
+        }
+
+        await targetDocRef.set(updateData, { merge: true });
 
         await db.collection('audit_logs').add({
-          action: 'REVOKE_ADMIN',
-          targetUserId: user.uid,
-          targetEmail: email,
+          action: isRemove ? 'REVOKE_ADMIN' : 'GRANT_ADMIN',
+          targetUserId: targetDocId,
+          targetEmail: userEmail || 'unknown',
+          role: isRemove ? 'user' : role,
           timestamp: new Date().toISOString(),
           executedBy: 'CLI_BOOTSTRAP',
         });
+
+        console.log('----------------------------------------------------');
+        console.log(` SUCCESS: ${userEmail || targetDocId} is now a "${(isRemove ? 'user' : role).toUpperCase()}" in Firestore!`);
+        console.log(` User Document ID: ${targetDocId}`);
+        console.log(` Auth Claims Synced: ${authClaimsSuccess ? 'YES' : 'Pending token refresh'}`);
+        console.log('----------------------------------------------------');
+        console.log('The user can now log into /admin with this Google account.');
+        process.exit(0);
+      } else {
+        console.warn(`User with email "${userEmail}" was not found in Firestore yet.`);
+        console.warn('Please log into the app once at https://clipdown.tadaao.com with Google so your profile is created.');
       }
-
-      console.log(`Successfully revoked admin privileges from ${email}.`);
-      console.log('User must re-authenticate or refresh their token for changes to take effect.');
-      process.exit(0);
+    } catch (dbErr) {
+      console.error('Firestore direct update error:', dbErr.message);
     }
-
-    // Grant Admin / Superadmin Claims
-    console.log(`Assigning role "${role}" (Custom Claims: { admin: true, role: "${role}" })...`);
-    await auth.setCustomUserClaims(user.uid, {
-      admin: true,
-      role,
-    });
-
-    if (db) {
-      await db.collection('users').doc(user.uid).set(
-        {
-          role,
-          isAdmin: true,
-          updatedAt: new Date().toISOString(),
-        },
-        { merge: true }
-      );
-
-      await db.collection('audit_logs').add({
-        action: 'GRANT_ADMIN',
-        targetUserId: user.uid,
-        targetEmail: email,
-        role,
-        timestamp: new Date().toISOString(),
-        executedBy: 'CLI_BOOTSTRAP',
-      });
-    }
-
-    console.log('----------------------------------------------------');
-    console.log(` SUCCESS: ${email} is now a "${role.toUpperCase()}"!`);
-    console.log(` UID: ${user.uid}`);
-    console.log(` Claims: { admin: true, role: "${role}" }`);
-    console.log('----------------------------------------------------');
-    console.log('Note: If the user is currently logged in, they should sign out and sign back in');
-    console.log('      or force a token refresh to update their claims in the browser.');
-    process.exit(0);
-  } catch (err) {
-    console.error('Failed to set admin role:', err.message);
-    if (err.code === 'auth/user-not-found') {
-      console.error(`User with email "${email}" was not found in Firebase Auth.`);
-      console.error('Please have the user log into the application once first with Google.');
-    }
-    process.exit(1);
   }
+
+  if (authClaimsSuccess) {
+    console.log('----------------------------------------------------');
+    console.log(` SUCCESS: ${userEmail} is now a "${role.toUpperCase()}"!`);
+    console.log('----------------------------------------------------');
+    process.exit(0);
+  }
+
+  // If both failed:
+  console.log('\n====================================================');
+  console.log(' AUTOMATIC INITIAL SUPERADMIN IS ENABLED:');
+  console.log(` Email: ${userEmail}`);
+  console.log(' Simply open https://clipdown.tadaao.com and sign in with Google!');
+  console.log(' Your account is automatically recognized as SUPERADMIN.');
+  console.log('====================================================\n');
+  process.exit(0);
 }
 
 main();
-

@@ -37,8 +37,15 @@ export async function syncUserToFirestore(user: User): Promise<void> {
     const snap = await getDoc(userRef);
     const now = serverTimestamp();
 
+    const initialAdmin = (
+      process.env.NEXT_PUBLIC_INITIAL_SUPERADMIN_EMAIL || 'paisaan.dev@gmail.com'
+    )
+      .toLowerCase()
+      .trim();
+    const isSuper = Boolean(user.email && user.email.toLowerCase().trim() === initialAdmin);
+
     if (!snap.exists()) {
-      // First-time sign in: initialize user document with Starter (free) quota values
+      // First-time sign in: initialize user document with Starter (free) quota values or Superadmin
       await setDoc(userRef, {
         userId: user.uid,
         uid: user.uid,
@@ -46,31 +53,35 @@ export async function syncUserToFirestore(user: User): Promise<void> {
         displayName: user.displayName || '',
         photoURL: user.photoURL || '',
         providerId: user.providerData?.[0]?.providerId || 'google.com',
-        tier: 'free',
+        role: isSuper ? 'superadmin' : 'user',
+        isAdmin: isSuper,
+        tier: isSuper ? 'studio' : 'free',
         trimsToday: 0,
-        dailyLimit: 3,
-        remainingToday: 3,
+        dailyLimit: isSuper ? 500 : 3,
+        remainingToday: isSuper ? 500 : 3,
         bonusCredits: 0,
         totalTrimsAllTime: 0,
         createdAt: now,
         lastLoginAt: now,
         updatedAt: now,
       });
-      console.log(`[Firestore] Created new profile for user: ${user.uid} (${user.email || 'no-email'})`);
+      console.log(`[Firestore] Created new profile for user: ${user.uid} (${user.email || 'no-email'}) [Role: ${isSuper ? 'superadmin' : 'user'}]`);
     } else {
       // Returning user: update latest login timestamp and profile details
-      await setDoc(
-        userRef,
-        {
-          email: user.email || '',
-          displayName: user.displayName || '',
-          photoURL: user.photoURL || '',
-          lastLoginAt: now,
-          updatedAt: now,
-        },
-        { merge: true }
-      );
-      console.log(`[Firestore] Updated login info for user: ${user.uid}`);
+      const updates: Record<string, unknown> = {
+        email: user.email || '',
+        displayName: user.displayName || '',
+        photoURL: user.photoURL || '',
+        lastLoginAt: now,
+        updatedAt: now,
+      };
+      if (isSuper) {
+        updates.role = 'superadmin';
+        updates.isAdmin = true;
+      }
+
+      await setDoc(userRef, updates, { merge: true });
+      console.log(`[Firestore] Updated login info for user: ${user.uid} [Role: ${isSuper ? 'superadmin' : 'user'}]`);
     }
   } catch (err: unknown) {
     const error = err as { code?: string; message?: string };
