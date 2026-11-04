@@ -113,13 +113,13 @@ function AdminShell({ children }: { children: React.ReactNode }) {
         />
       )}
 
-      {/* Sidebar Navigation */}
+      {/* Sidebar Navigation - Fixed & Sticky Full Height on Desktop */}
       <aside
-        className={`fixed inset-y-0 left-0 z-50 w-60 bg-white border-r border-neutral-200 flex flex-col justify-between transition-transform duration-200 md:translate-x-0 md:static ${
+        className={`fixed inset-y-0 left-0 z-50 w-64 bg-white border-r border-neutral-200 flex flex-col justify-between transition-transform duration-200 md:sticky md:top-0 md:h-screen md:translate-x-0 shrink-0 ${
           mobileNavOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
-        <div>
+        <div className="flex flex-col">
           {/* Brand Header */}
           <div className="px-5 py-4 border-b border-neutral-200">
             <Link href="/admin" className="flex items-center gap-2.5">
@@ -134,32 +134,37 @@ function AdminShell({ children }: { children: React.ReactNode }) {
           </div>
 
           {/* Navigation Links */}
-          <nav className="p-3 space-y-0.5">
-            {NAV_ITEMS.map((item) => {
-              const isActive = pathname === item.href;
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  onClick={() => setMobileNavOpen(false)}
-                  className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-colors ${
-                    isActive
-                      ? 'bg-neutral-100 text-neutral-900 font-semibold'
-                      : 'text-neutral-600 hover:text-neutral-900 hover:bg-neutral-50'
-                  }`}
-                >
-                  <span className={isActive ? 'text-neutral-900' : 'text-neutral-500'}>
-                    {item.icon}
-                  </span>
-                  <span>{item.name}</span>
-                </Link>
-              );
-            })}
-          </nav>
+          <div className="p-3">
+            <p className="px-3 text-[10px] font-semibold text-neutral-400 uppercase tracking-wider mb-2 font-mono">
+              Management
+            </p>
+            <nav className="space-y-0.5">
+              {NAV_ITEMS.map((item) => {
+                const isActive = pathname === item.href;
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    onClick={() => setMobileNavOpen(false)}
+                    className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-colors ${
+                      isActive
+                        ? 'bg-neutral-900 text-white font-semibold'
+                        : 'text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100'
+                    }`}
+                  >
+                    <span className={isActive ? 'text-white' : 'text-neutral-500'}>
+                      {item.icon}
+                    </span>
+                    <span>{item.name}</span>
+                  </Link>
+                );
+              })}
+            </nav>
+          </div>
         </div>
 
         {/* Sidebar Footer */}
-        <div className="p-3 border-t border-neutral-200 space-y-2.5">
+        <div className="p-3 border-t border-neutral-200 space-y-2">
           {/* Public site link */}
           <Link
             href="/"
@@ -170,39 +175,39 @@ function AdminShell({ children }: { children: React.ReactNode }) {
               <svg className="w-3.5 h-3.5 text-neutral-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
               </svg>
-              <span>Public App</span>
+              <span>Public Web App</span>
             </span>
             <span className="text-[10px] text-neutral-400">&rarr;</span>
           </Link>
 
           {/* User Profile & Sign Out */}
-          <div className="flex items-center justify-between pt-1">
+          <div className="p-2.5 rounded-lg bg-neutral-50 border border-neutral-200 flex items-center justify-between">
             <div className="flex items-center gap-2 min-w-0">
               {adminUser?.photoURL ? (
                 <img
                   src={adminUser.photoURL}
                   alt={adminUser.displayName || 'Admin'}
-                  className="w-7 h-7 rounded-full border border-neutral-200 object-cover"
+                  className="w-7 h-7 rounded-full border border-neutral-200 object-cover shrink-0"
                 />
               ) : (
-                <div className="w-7 h-7 rounded-full bg-neutral-200 flex items-center justify-center text-[11px] font-bold text-neutral-700 uppercase">
+                <div className="w-7 h-7 rounded-full bg-neutral-200 flex items-center justify-center text-[11px] font-bold text-neutral-700 uppercase shrink-0">
                   {adminUser?.email?.charAt(0) || 'A'}
                 </div>
               )}
               <div className="min-w-0">
-                <p className="text-xs font-medium text-neutral-900 truncate">
+                <p className="text-xs font-semibold text-neutral-900 truncate">
                   {adminUser?.displayName || adminUser?.email?.split('@')[0]}
                 </p>
-                <p className="text-[10px] text-neutral-500 truncate">
+                <span className="inline-block text-[10px] text-neutral-500 font-mono uppercase truncate">
                   {adminUser?.role}
-                </p>
+                </span>
               </div>
             </div>
 
             <button
               onClick={() => signOut()}
               title="Sign Out"
-              className="p-1 rounded-md hover:bg-neutral-100 text-neutral-400 hover:text-neutral-700 transition-colors"
+              className="p-1 rounded-md hover:bg-neutral-200 text-neutral-500 hover:text-neutral-900 transition-colors ml-1"
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
@@ -213,16 +218,16 @@ function AdminShell({ children }: { children: React.ReactNode }) {
       </aside>
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
+      <div className="flex-1 flex flex-col min-w-0">
         {/* Top Header */}
-        <header className="hidden md:flex items-center justify-between px-6 py-3.5 border-b border-neutral-200 bg-white sticky top-0 z-30">
+        <header className="sticky top-0 z-30 bg-white/90 backdrop-blur-xs border-b border-neutral-200 px-6 py-3.5 flex items-center justify-between">
           <div className="flex items-center gap-2 text-xs">
             <span className="text-neutral-400">Admin</span>
             <span className="text-neutral-300">/</span>
             <h2 className="font-semibold text-neutral-900">{pageTitle}</h2>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2.5">
             <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-[11px]">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
               <span>Operational</span>
@@ -234,8 +239,8 @@ function AdminShell({ children }: { children: React.ReactNode }) {
           </div>
         </header>
 
-        {/* Page Content */}
-        <main className="flex-1 p-4 sm:p-6 max-w-6xl w-full mx-auto">
+        {/* Page Content with proper Max-Width Container */}
+        <main className="flex-1 w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           {children}
         </main>
       </div>
