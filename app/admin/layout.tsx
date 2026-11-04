@@ -240,7 +240,7 @@ function AdminShell({ children }: { children: React.ReactNode }) {
         </header>
 
         {/* Page Content with proper Max-Width Container */}
-        <main className="flex-1 w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           {children}
         </main>
       </div>
@@ -251,7 +251,9 @@ function AdminShell({ children }: { children: React.ReactNode }) {
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   return (
     <AdminAuthProvider>
-      <AdminGuard>{children}</AdminGuard>
+      <AdminGuard>
+        <AdminShell>{children}</AdminShell>
+      </AdminGuard>
     </AdminAuthProvider>
   );
 }
