@@ -2,6 +2,8 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { db } from '@/src/lib/firebase';
 
 export default function ContactPage() {
   const [formData, setFormData] = useState({
@@ -49,6 +51,24 @@ export default function ContactPage() {
     setIsSubmitting(true);
 
     try {
+      // 1. Direct Cloud Firestore write
+      if (db) {
+        try {
+          await addDoc(collection(db, 'contact_messages'), {
+            name: formData.name.trim(),
+            email: formData.email.trim(),
+            topic: formData.topic,
+            message: formData.message.trim(),
+            status: 'unread',
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+          });
+        } catch {
+          // fallback to server endpoint
+        }
+      }
+
+      // 2. Server endpoint write
       const res = await fetch('/api/contact', {
         method: 'POST',
         headers: {

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { contactService } from '@/server/services/contactService';
 
 export async function POST(req: NextRequest) {
   try {
@@ -34,14 +35,26 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Log the contact message for admin review
-    const timestamp = new Date().toISOString();
-    console.log(`[Contact Submission] ${timestamp} | From: ${name.trim()} <${email.trim()}> | Topic: ${topic} | Message: ${message.trim()}`);
+    const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || req.headers.get('x-real-ip') || undefined;
+    const userAgent = req.headers.get('user-agent') || undefined;
+
+    // Persist contact message
+    const record = await contactService.createMessage({
+      name,
+      email,
+      topic,
+      message,
+      ip,
+      userAgent,
+    });
+
+    console.log(`[Contact Submission] Recorded inquiry ${record.id} from: ${record.name} <${record.email}> [Topic: ${record.topic}]`);
 
     return NextResponse.json(
       {
         success: true,
         message: 'Thank you for reaching out! Your message has been received. Our team will get back to you within 24 to 48 business hours.',
+        id: record.id,
       },
       { status: 200 }
     );
@@ -53,4 +66,3 @@ export async function POST(req: NextRequest) {
     );
   }
 }
-
