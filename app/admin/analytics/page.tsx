@@ -62,32 +62,31 @@ export default function AdminAnalyticsPage() {
     fetchAnalytics(timeframe);
   }, [timeframe]);
 
-  // Max value for bar scaling
   const maxVolume = Math.max(
     1,
     ...(data?.dailyRecords.map((d) => d.totalTrims + d.totalFullDownloads) || [10])
   );
 
   return (
-    <div className="space-y-8">
-      {/* Header with Timeframe selector */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <div className="space-y-6">
+      {/* Header & Filter Controls */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-white tracking-tight">Usage & Conversion Telemetry</h1>
-          <p className="text-neutral-400 text-xs sm:text-sm mt-1">
-            Aggregated traffic, video quality mix, and execution success metrics
+          <h1 className="text-lg font-bold text-neutral-900 tracking-tight">Usage & Volume Analytics</h1>
+          <p className="text-xs text-neutral-500 mt-0.5">
+            Aggregated traffic, video quality choices, and processing metrics
           </p>
         </div>
 
-        <div className="flex items-center gap-1.5 p-1 rounded-xl bg-neutral-900 border border-neutral-800 self-start sm:self-auto">
+        <div className="flex items-center gap-1 bg-white p-1 rounded-lg border border-neutral-200 self-start sm:self-auto">
           {[7, 14, 30].map((days) => (
             <button
               key={days}
               onClick={() => setTimeframe(days)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
                 timeframe === days
-                  ? 'bg-red-600 text-white shadow-md shadow-red-600/30'
-                  : 'text-neutral-400 hover:text-white'
+                  ? 'bg-neutral-900 text-white'
+                  : 'text-neutral-600 hover:text-neutral-900'
               }`}
             >
               Last {days} Days
@@ -96,96 +95,100 @@ export default function AdminAnalyticsPage() {
         </div>
       </div>
 
-      {/* KPI Summary Grid */}
+      {/* KPI Stats Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="p-5 rounded-2xl bg-neutral-900/90 border border-neutral-800">
-          <p className="text-xs font-medium text-neutral-400 uppercase tracking-wider">Total Video Trims</p>
-          <p className="text-3xl font-extrabold text-white mt-3">
+        <div className="p-4 rounded-xl bg-white border border-neutral-200">
+          <p className="text-xs font-medium text-neutral-500">Total Video Trims</p>
+          <p className="text-2xl font-bold text-neutral-900 mt-1.5">
             {isLoading ? '...' : data?.summary.totalTrims.toLocaleString()}
           </p>
-          <p className="text-[11px] text-neutral-500 mt-1">Trimmed clip segments</p>
+          <p className="text-[11px] text-neutral-400 mt-0.5">Trimmed video clips</p>
         </div>
 
-        <div className="p-5 rounded-2xl bg-neutral-900/90 border border-neutral-800">
-          <p className="text-xs font-medium text-neutral-400 uppercase tracking-wider">Full Video Downloads</p>
-          <p className="text-3xl font-extrabold text-purple-400 mt-3">
+        <div className="p-4 rounded-xl bg-white border border-neutral-200">
+          <p className="text-xs font-medium text-neutral-500">Full Video Downloads</p>
+          <p className="text-2xl font-bold text-neutral-900 mt-1.5">
             {isLoading ? '...' : data?.summary.totalFullDownloads.toLocaleString()}
           </p>
-          <p className="text-[11px] text-neutral-500 mt-1">Full source videos downloaded</p>
+          <p className="text-[11px] text-neutral-400 mt-0.5">Complete videos retrieved</p>
         </div>
 
-        <div className="p-5 rounded-2xl bg-neutral-900/90 border border-neutral-800">
-          <p className="text-xs font-medium text-neutral-400 uppercase tracking-wider">Total Data Processed</p>
-          <p className="text-3xl font-extrabold text-emerald-400 mt-3">
+        <div className="p-4 rounded-xl bg-white border border-neutral-200">
+          <p className="text-xs font-medium text-neutral-500">Data Processed</p>
+          <p className="text-2xl font-bold text-neutral-900 mt-1.5">
             {isLoading ? '...' : formatBytes(data?.summary.totalBytes || 0)}
           </p>
-          <p className="text-[11px] text-neutral-500 mt-1">Through RAM disk & temp caches</p>
+          <p className="text-[11px] text-neutral-400 mt-0.5">Total network & cache volume</p>
         </div>
 
-        <div className="p-5 rounded-2xl bg-neutral-900/90 border border-neutral-800">
-          <p className="text-xs font-medium text-neutral-400 uppercase tracking-wider">Execution Success Rate</p>
-          <p className="text-3xl font-extrabold text-cyan-400 mt-3">
+        <div className="p-4 rounded-xl bg-white border border-neutral-200">
+          <p className="text-xs font-medium text-neutral-500">Success Rate</p>
+          <p className="text-2xl font-bold text-neutral-900 mt-1.5">
             {isLoading ? '...' : `${data?.summary.successRate}%`}
           </p>
-          <p className="text-[11px] text-neutral-500 mt-1">
+          <p className="text-[11px] text-neutral-400 mt-0.5">
             {data?.summary.totalFailures} failures recorded
           </p>
         </div>
       </div>
 
-      {/* Visual Volume Bar Chart (Interactive Responsive SVG) */}
-      <div className="p-6 rounded-2xl bg-neutral-900/80 border border-neutral-800">
-        <div className="flex items-center justify-between mb-6">
+      {/* Bar Chart Container */}
+      <div className="p-5 rounded-xl bg-white border border-neutral-200">
+        <div className="flex items-center justify-between mb-4">
           <div>
-            <h2 className="text-sm font-bold text-white uppercase tracking-wider">Daily Processing Volume</h2>
-            <p className="text-xs text-neutral-400 mt-0.5">Clips trimmed (red) vs Full downloads (purple)</p>
+            <h2 className="text-xs font-semibold text-neutral-900 uppercase tracking-wider">
+              Daily Volume Breakdown
+            </h2>
+            <p className="text-xs text-neutral-500 mt-0.5">
+              Clips trimmed (red) vs. full video downloads (gray)
+            </p>
           </div>
-          <div className="flex items-center gap-4 text-xs font-medium">
+          <div className="flex items-center gap-3 text-xs">
             <span className="flex items-center gap-1.5">
-              <span className="w-3 h-3 rounded bg-red-500" />
-              <span className="text-neutral-300">Trims</span>
+              <span className="w-2.5 h-2.5 rounded-sm bg-red-600" />
+              <span className="text-neutral-600">Trims</span>
             </span>
             <span className="flex items-center gap-1.5">
-              <span className="w-3 h-3 rounded bg-purple-500" />
-              <span className="text-neutral-300">Full Downloads</span>
+              <span className="w-2.5 h-2.5 rounded-sm bg-neutral-800" />
+              <span className="text-neutral-600">Full</span>
             </span>
           </div>
         </div>
 
-        {/* Chart Bars */}
-        <div className="h-64 flex items-end gap-2 pt-6 pb-2 border-b border-neutral-800 overflow-x-auto">
+        {/* Clean Chart Bars */}
+        <div className="h-56 flex items-end gap-1.5 pt-4 pb-2 border-b border-neutral-200 overflow-x-auto">
           {data?.dailyRecords.map((d) => {
             const trimsH = (d.totalTrims / maxVolume) * 100;
             const fullH = (d.totalFullDownloads / maxVolume) * 100;
             const dayLabel = d.date.slice(5); // "MM-DD"
 
             return (
-              <div key={d.date} className="flex-1 min-w-[28px] h-full flex flex-col justify-end items-center group relative">
+              <div key={d.date} className="flex-1 min-w-[24px] h-full flex flex-col justify-end items-center group relative">
                 {/* Tooltip on hover */}
-                <div className="absolute -top-12 z-20 hidden group-hover:flex flex-col items-center bg-neutral-800 border border-neutral-700 px-2 py-1 rounded text-[10px] text-white shadow-xl whitespace-nowrap pointer-events-none">
-                  <span>{d.date}</span>
-                  <span className="text-red-400 font-bold">{d.totalTrims} trims | {d.totalFullDownloads} full</span>
+                <div className="absolute -top-10 z-20 hidden group-hover:flex flex-col items-center bg-white border border-neutral-200 px-2 py-1 rounded text-[10px] text-neutral-800 shadow-md whitespace-nowrap pointer-events-none">
+                  <span className="font-semibold">{d.date}</span>
+                  <span className="text-neutral-600">{d.totalTrims} trims, {d.totalFullDownloads} full</span>
                 </div>
 
-                <div className="w-full max-w-[20px] flex flex-col justify-end items-center gap-0.5 h-full">
+                <div className="w-full max-w-[16px] flex flex-col justify-end items-center gap-0.5 h-full">
                   {fullH > 0 && (
                     <div
                       style={{ height: `${Math.max(4, fullH)}%` }}
-                      className="w-full bg-purple-500/80 rounded-t transition-all group-hover:bg-purple-400"
+                      className="w-full bg-neutral-800 rounded-t"
                     />
                   )}
                   {trimsH > 0 && (
                     <div
                       style={{ height: `${Math.max(4, trimsH)}%` }}
-                      className="w-full bg-red-500/90 rounded-t transition-all group-hover:bg-red-400"
+                      className="w-full bg-red-600 rounded-t"
                     />
                   )}
                   {fullH === 0 && trimsH === 0 && (
-                    <div className="w-full h-1 bg-neutral-800 rounded" />
+                    <div className="w-full h-1 bg-neutral-200 rounded" />
                   )}
                 </div>
 
-                <span className="text-[10px] text-neutral-500 mt-2 font-mono group-hover:text-white">
+                <span className="text-[10px] text-neutral-400 mt-2 font-mono">
                   {dayLabel}
                 </span>
               </div>
@@ -194,36 +197,36 @@ export default function AdminAnalyticsPage() {
         </div>
       </div>
 
-      {/* Quality Breakdown & Error Distribution */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      {/* Two Column Layout: Resolution Mix & Reliability */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Quality Mix */}
-        <div className="p-6 rounded-2xl bg-neutral-900/80 border border-neutral-800">
-          <h2 className="text-sm font-bold text-white uppercase tracking-wider mb-2">Resolution Distribution</h2>
-          <p className="text-xs text-neutral-400 mb-6">Preferred output quality requested by users</p>
+        <div className="p-5 rounded-xl bg-white border border-neutral-200 space-y-3">
+          <div>
+            <h2 className="text-xs font-semibold text-neutral-900 uppercase tracking-wider">
+              Resolution Distribution
+            </h2>
+            <p className="text-xs text-neutral-500 mt-0.5">Most frequently selected output resolutions</p>
+          </div>
 
-          <div className="space-y-4">
+          <div className="space-y-3 pt-2">
             {['2160', '1440', '1080', '720', '480', '360'].map((quality) => {
               const count = data?.summary.qualityTotals?.[quality] || 0;
               const totalJobs = (data?.summary.totalTrims || 0) + (data?.summary.totalFullDownloads || 0);
               const percentage = totalJobs > 0 ? ((count / totalJobs) * 100).toFixed(1) : '0';
 
               return (
-                <div key={quality} className="space-y-1.5">
-                  <div className="flex items-center justify-between text-xs font-mono">
-                    <span className="text-neutral-300 font-semibold">{quality}p {quality === '2160' ? '(4K UHD)' : quality === '1080' ? '(Full HD)' : ''}</span>
-                    <span className="text-neutral-400">{count} ({percentage}%)</span>
+                <div key={quality} className="space-y-1">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-medium text-neutral-700">
+                      {quality}p {quality === '2160' ? '(4K)' : quality === '1080' ? '(HD)' : ''}
+                    </span>
+                    <span className="text-neutral-500 text-[11px]">{count} ({percentage}%)</span>
                   </div>
-                  <div className="w-full h-2 rounded-full bg-neutral-800 overflow-hidden">
+                  <div className="w-full h-1.5 rounded-full bg-neutral-100 overflow-hidden">
                     <div
                       style={{ width: `${percentage}%` }}
                       className={`h-full rounded-full ${
-                        quality === '2160'
-                          ? 'bg-purple-500'
-                          : quality === '1080'
-                          ? 'bg-blue-500'
-                          : quality === '720'
-                          ? 'bg-emerald-500'
-                          : 'bg-neutral-600'
+                        quality === '2160' || quality === '1080' ? 'bg-neutral-900' : 'bg-red-600'
                       }`}
                     />
                   </div>
@@ -233,36 +236,38 @@ export default function AdminAnalyticsPage() {
           </div>
         </div>
 
-        {/* Reliability & Failure Diagnostic */}
-        <div className="p-6 rounded-2xl bg-neutral-900/80 border border-neutral-800 flex flex-col justify-between">
+        {/* Reliability Overview */}
+        <div className="p-5 rounded-xl bg-white border border-neutral-200 flex flex-col justify-between">
           <div>
-            <h2 className="text-sm font-bold text-white uppercase tracking-wider mb-2">Reliability & Success Ratio</h2>
-            <p className="text-xs text-neutral-400 mb-6">Automated engine completion vs. YouTube bot-checks</p>
+            <h2 className="text-xs font-semibold text-neutral-900 uppercase tracking-wider">
+              Pipeline Health
+            </h2>
+            <p className="text-xs text-neutral-500 mt-0.5">Job completion rate vs error occurrences</p>
 
             <div className="flex items-center justify-center py-6">
-              <div className="relative w-44 h-44 rounded-full border-8 border-neutral-800 flex flex-col items-center justify-center">
-                <span className="text-3xl font-extrabold text-white">
+              <div className="w-28 h-28 rounded-full border-4 border-neutral-200 flex flex-col items-center justify-center">
+                <span className="text-2xl font-bold text-neutral-900">
                   {data?.summary.successRate}%
                 </span>
-                <span className="text-[11px] text-neutral-400 uppercase tracking-wider mt-1">Success</span>
+                <span className="text-[10px] text-neutral-400 font-medium uppercase mt-0.5">Success</span>
               </div>
             </div>
           </div>
 
-          <div className="p-4 rounded-xl bg-neutral-950 border border-neutral-800 text-xs text-neutral-400 space-y-2">
+          <div className="p-3 rounded-lg bg-neutral-50 border border-neutral-200 text-xs text-neutral-600 space-y-1.5">
             <div className="flex items-center justify-between">
-              <span>Total Jobs Handled:</span>
-              <strong className="text-white font-mono">{data?.summary.totalJobs}</strong>
+              <span>Total Jobs Processed:</span>
+              <strong className="text-neutral-900">{data?.summary.totalJobs}</strong>
             </div>
             <div className="flex items-center justify-between">
               <span>Successful Completions:</span>
-              <strong className="text-emerald-400 font-mono">
+              <strong className="text-neutral-900">
                 {(data?.summary.totalTrims || 0) + (data?.summary.totalFullDownloads || 0)}
               </strong>
             </div>
             <div className="flex items-center justify-between">
-              <span>Failures / Blocked:</span>
-              <strong className="text-red-400 font-mono">{data?.summary.totalFailures}</strong>
+              <span>Failed / Blocked by YouTube:</span>
+              <strong className="text-red-700">{data?.summary.totalFailures}</strong>
             </div>
           </div>
         </div>
@@ -270,4 +275,3 @@ export default function AdminAnalyticsPage() {
     </div>
   );
 }
-

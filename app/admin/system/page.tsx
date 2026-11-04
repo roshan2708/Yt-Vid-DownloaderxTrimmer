@@ -102,9 +102,9 @@ export default function AdminSystemPage() {
       });
 
       if (res.ok) {
-        setSaveSuccess('System configuration saved successfully!');
+        setSaveSuccess('Configuration saved successfully.');
         fetchSystemData();
-        setTimeout(() => setSaveSuccess(null), 3500);
+        setTimeout(() => setSaveSuccess(null), 3000);
       } else {
         const err = await res.json();
         alert(err.error || 'Failed to save configuration');
@@ -117,18 +117,18 @@ export default function AdminSystemPage() {
   };
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-white tracking-tight">System Infrastructure & Runtime Toggles</h1>
-        <p className="text-neutral-400 text-xs sm:text-sm mt-1">
-          Configure runtime maintenance banners, adjust free tier limits, and inspect worker binaries
+        <h1 className="text-lg font-bold text-neutral-900 tracking-tight">System Settings & Resources</h1>
+        <p className="text-xs text-neutral-500 mt-0.5">
+          Configure runtime maintenance mode, free quota limits, and inspect server binaries
         </p>
       </div>
 
       {saveSuccess && (
-        <div className="p-4 rounded-xl bg-emerald-950/80 border border-emerald-800 text-emerald-300 text-xs flex items-center gap-2">
-          <svg className="w-4 h-4 text-emerald-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <div className="p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-center gap-2">
+          <svg className="w-4 h-4 text-emerald-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
           </svg>
           <span>{saveSuccess}</span>
@@ -136,33 +136,35 @@ export default function AdminSystemPage() {
       )}
 
       {/* Runtime Config Form */}
-      <div className="p-6 rounded-2xl bg-neutral-900/80 border border-neutral-800">
-        <div className="flex items-center justify-between mb-6 pb-4 border-b border-neutral-800">
+      <div className="p-5 rounded-xl bg-white border border-neutral-200">
+        <div className="flex items-center justify-between mb-4 pb-3 border-b border-neutral-100">
           <div>
-            <h2 className="text-sm font-bold text-white uppercase tracking-wider">Dynamic Runtime Configuration</h2>
-            <p className="text-xs text-neutral-400 mt-0.5">Applied immediately across frontend & backend without redeploy</p>
+            <h2 className="text-xs font-semibold text-neutral-900 uppercase tracking-wider">
+              Runtime Configuration
+            </h2>
+            <p className="text-xs text-neutral-500 mt-0.5">Changes apply immediately across the site</p>
           </div>
           {!isSuperAdmin && (
-            <span className="px-2.5 py-1 rounded bg-neutral-800 text-[10px] font-mono text-neutral-400">
+            <span className="px-2 py-0.5 rounded bg-neutral-100 border border-neutral-200 text-[10px] font-mono text-neutral-600">
               Superadmin Required
             </span>
           )}
         </div>
 
-        <form onSubmit={handleSaveConfig} className="space-y-5">
+        <form onSubmit={handleSaveConfig} className="space-y-4">
           {/* Maintenance Mode Toggle */}
-          <div className="p-4 rounded-xl bg-neutral-950 border border-neutral-800 flex items-center justify-between">
-            <div className="space-y-0.5">
-              <label htmlFor="maintenanceToggle" className="text-xs font-semibold text-white flex items-center gap-2">
-                Emergency Maintenance Mode
+          <div className="p-3 rounded-lg bg-neutral-50 border border-neutral-200 flex items-center justify-between">
+            <div>
+              <label htmlFor="maintenanceToggle" className="text-xs font-medium text-neutral-900 flex items-center gap-2">
+                Maintenance Mode
                 {maintenanceMode && (
-                  <span className="px-2 py-0.5 rounded bg-amber-950 border border-amber-800 text-amber-400 text-[10px] font-bold">
-                    Active
+                  <span className="px-1.5 py-0.2 rounded bg-amber-100 text-amber-800 text-[10px] font-semibold">
+                    Enabled
                   </span>
                 )}
               </label>
-              <p className="text-[11px] text-neutral-400">
-                When active, public video processing requests will display a maintenance notice.
+              <p className="text-[11px] text-neutral-500 mt-0.5">
+                Displays maintenance notice on video processing requests.
               </p>
             </div>
             <input
@@ -171,26 +173,26 @@ export default function AdminSystemPage() {
               disabled={!isSuperAdmin}
               checked={maintenanceMode}
               onChange={(e) => setMaintenanceMode(e.target.checked)}
-              className="w-5 h-5 rounded accent-red-600 cursor-pointer"
+              className="w-4 h-4 rounded accent-neutral-900 cursor-pointer"
             />
           </div>
 
           {/* Maintenance Message */}
-          <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-neutral-300">Custom Maintenance Notice</label>
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-neutral-700">Maintenance Notice Text</label>
             <input
               type="text"
               disabled={!isSuperAdmin}
               value={maintenanceMessage}
               onChange={(e) => setMaintenanceMessage(e.target.value)}
-              placeholder="e.g. We are performing server upgrades. We will be back shortly!"
-              className="w-full px-3.5 py-2.5 rounded-xl bg-neutral-950 border border-neutral-800 text-xs text-white placeholder-neutral-500 focus:outline-none focus:border-red-500 disabled:opacity-50"
+              placeholder="e.g. Under scheduled maintenance. Please check back shortly."
+              className="w-full px-3 py-2 rounded-lg bg-white border border-neutral-300 text-xs text-neutral-900 placeholder-neutral-400 focus:outline-none focus:ring-1 focus:ring-neutral-900 disabled:bg-neutral-50"
             />
           </div>
 
           {/* Daily Limit */}
-          <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-neutral-300">Default Free Daily Trim Limit</label>
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-neutral-700">Default Free Daily Trim Limit</label>
             <input
               type="number"
               min={1}
@@ -198,72 +200,72 @@ export default function AdminSystemPage() {
               disabled={!isSuperAdmin}
               value={defaultDailyLimit}
               onChange={(e) => setDefaultDailyLimit(parseInt(e.target.value, 10))}
-              className="w-32 px-3.5 py-2 rounded-xl bg-neutral-950 border border-neutral-800 text-xs text-white focus:outline-none focus:border-red-500 disabled:opacity-50"
+              className="w-28 px-3 py-2 rounded-lg bg-white border border-neutral-300 text-xs text-neutral-900 focus:outline-none focus:ring-1 focus:ring-neutral-900 disabled:bg-neutral-50"
             />
-            <p className="text-[11px] text-neutral-500">Number of free trims granted to Starter tier users daily.</p>
+            <p className="text-[11px] text-neutral-400">Daily trim quota granted to Starter accounts.</p>
           </div>
 
           {isSuperAdmin && (
             <button
               type="submit"
               disabled={isSaving}
-              className="px-5 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white font-semibold text-xs transition-colors shadow-lg shadow-red-600/20 disabled:opacity-50"
+              className="px-4 py-2 rounded-lg bg-neutral-900 hover:bg-black text-white font-medium text-xs transition-colors disabled:opacity-50"
             >
-              {isSaving ? 'Saving Updates...' : 'Save Configuration'}
+              {isSaving ? 'Saving...' : 'Save Settings'}
             </button>
           )}
         </form>
       </div>
 
-      {/* Storage & Memory Health */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Storage Breakdown */}
-        <div className="p-6 rounded-2xl bg-neutral-900/80 border border-neutral-800 space-y-4">
-          <h2 className="text-sm font-bold text-white uppercase tracking-wider">Storage Architecture</h2>
-          <div className="space-y-3 text-xs">
-            <div className="p-3.5 rounded-xl bg-neutral-950 border border-neutral-800 space-y-1">
+      {/* Storage & Environment Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Storage */}
+        <div className="p-5 rounded-xl bg-white border border-neutral-200 space-y-3">
+          <h2 className="text-xs font-semibold text-neutral-900 uppercase tracking-wider">Storage Paths</h2>
+          <div className="space-y-2 text-xs">
+            <div className="p-3 rounded-lg bg-neutral-50 border border-neutral-200">
               <div className="flex items-center justify-between">
-                <span className="font-semibold text-white">RAM Disk (/dev/shm)</span>
-                <span className="text-emerald-400 font-mono font-bold">
+                <span className="font-medium text-neutral-700">RAM Disk (/dev/shm)</span>
+                <span className="font-mono font-bold text-neutral-900">
                   {data ? formatBytes(data.storage.ramSizeBytes) : '...'}
                 </span>
               </div>
-              <p className="text-[11px] text-neutral-500 font-mono truncate">{data?.storage.ramTempDir}</p>
+              <p className="text-[11px] text-neutral-400 font-mono mt-0.5 truncate">{data?.storage.ramTempDir}</p>
             </div>
 
-            <div className="p-3.5 rounded-xl bg-neutral-950 border border-neutral-800 space-y-1">
+            <div className="p-3 rounded-lg bg-neutral-50 border border-neutral-200">
               <div className="flex items-center justify-between">
-                <span className="font-semibold text-white">SSD Temp Storage</span>
-                <span className="text-purple-400 font-mono font-bold">
+                <span className="font-medium text-neutral-700">SSD Storage (server/temp)</span>
+                <span className="font-mono font-bold text-neutral-900">
                   {data ? formatBytes(data.storage.diskSizeBytes) : '...'}
                 </span>
               </div>
-              <p className="text-[11px] text-neutral-500 font-mono truncate">{data?.storage.diskTempDir}</p>
+              <p className="text-[11px] text-neutral-400 font-mono mt-0.5 truncate">{data?.storage.diskTempDir}</p>
             </div>
           </div>
         </div>
 
         {/* Engine Binaries */}
-        <div className="p-6 rounded-2xl bg-neutral-900/80 border border-neutral-800 space-y-4">
-          <h2 className="text-sm font-bold text-white uppercase tracking-wider">Engine Binaries & Environment</h2>
-          <div className="space-y-3 text-xs">
-            <div className="p-3.5 rounded-xl bg-neutral-950 border border-neutral-800 flex items-center justify-between">
-              <span className="font-semibold text-white">yt-dlp Engine Version</span>
-              <span className="text-cyan-400 font-mono font-bold">
+        <div className="p-5 rounded-xl bg-white border border-neutral-200 space-y-3">
+          <h2 className="text-xs font-semibold text-neutral-900 uppercase tracking-wider">Engine Binaries</h2>
+          <div className="space-y-2 text-xs">
+            <div className="p-3 rounded-lg bg-neutral-50 border border-neutral-200 flex items-center justify-between">
+              <span className="font-medium text-neutral-700">yt-dlp Version</span>
+              <span className="font-mono text-neutral-900 font-semibold">
                 {data?.binaries.ytDlpVersion || 'Checking...'}
               </span>
             </div>
 
-            <div className="p-3.5 rounded-xl bg-neutral-950 border border-neutral-800 flex items-center justify-between">
-              <span className="font-semibold text-white">Runtime OS & Architecture</span>
-              <span className="text-neutral-300 font-mono font-semibold">
+            <div className="p-3 rounded-lg bg-neutral-50 border border-neutral-200 flex items-center justify-between">
+              <span className="font-medium text-neutral-700">Operating System</span>
+              <span className="font-mono text-neutral-700">
                 {data?.process.platform} ({data?.process.arch})
               </span>
             </div>
 
-            <div className="p-3.5 rounded-xl bg-neutral-950 border border-neutral-800 flex items-center justify-between">
-              <span className="font-semibold text-white">Node.js Version</span>
-              <span className="text-neutral-300 font-mono font-semibold">
+            <div className="p-3 rounded-lg bg-neutral-50 border border-neutral-200 flex items-center justify-between">
+              <span className="font-medium text-neutral-700">Node.js Version</span>
+              <span className="font-mono text-neutral-700">
                 {data?.process.nodeVersion}
               </span>
             </div>
@@ -273,4 +275,3 @@ export default function AdminSystemPage() {
     </div>
   );
 }
-

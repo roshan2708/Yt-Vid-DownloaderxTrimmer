@@ -22,13 +22,6 @@ interface JobItem {
   completedAt?: number;
 }
 
-function formatBytes(bytes?: number): string {
-  if (!bytes || bytes <= 0) return '0 B';
-  const units = ['B', 'KB', 'MB', 'GB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(1024));
-  return `${(bytes / Math.pow(1024, i)).toFixed(1)} ${units[i]}`;
-}
-
 export default function AdminJobsPage() {
   const [jobs, setJobs] = useState<JobItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -62,7 +55,7 @@ export default function AdminJobsPage() {
   }, [autoRefresh]);
 
   const handleCancelJob = async (jobId: string) => {
-    if (!confirm(`Are you sure you want to abort job ${jobId}?`)) return;
+    if (!confirm(`Cancel job ${jobId}?`)) return;
 
     try {
       const token = await getCurrentIdToken();
@@ -96,7 +89,7 @@ export default function AdminJobsPage() {
         body: JSON.stringify({ action: 'CLEAN_ORPHANED_FILES' }),
       });
       if (res.ok) {
-        alert('Cache files cleaned successfully.');
+        alert('Cache cleared.');
         fetchJobs();
       }
     } catch {
@@ -107,148 +100,139 @@ export default function AdminJobsPage() {
   const activeCount = jobs.filter((j) => j.status === 'processing' || j.status === 'queued').length;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-bold text-white tracking-tight">Active Queue & Job Telemetry</h1>
+            <h1 className="text-lg font-bold text-neutral-900 tracking-tight">Job Processing Queue</h1>
             {activeCount > 0 && (
-              <span className="px-2 py-0.5 rounded-full bg-red-950 border border-red-800 text-red-400 text-xs font-bold animate-pulse">
+              <span className="px-2 py-0.5 rounded-full bg-blue-50 border border-blue-200 text-blue-700 text-[11px] font-medium">
                 {activeCount} active
               </span>
             )}
           </div>
-          <p className="text-neutral-400 text-xs sm:text-sm mt-1">
-            Real-time FFmpeg processing pipeline, memory disk queue, and worker threads
+          <p className="text-xs text-neutral-500 mt-0.5">
+            Active and recent video download tasks and worker statuses
           </p>
         </div>
 
         <div className="flex items-center gap-2 self-start sm:self-auto">
-          <label className="flex items-center gap-2 px-3 py-2 rounded-xl bg-neutral-900 border border-neutral-800 text-xs text-neutral-300 cursor-pointer">
+          <label className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white border border-neutral-300 text-xs text-neutral-700 cursor-pointer">
             <input
               type="checkbox"
               checked={autoRefresh}
               onChange={(e) => setAutoRefresh(e.target.checked)}
-              className="rounded accent-red-600"
+              className="rounded accent-neutral-900"
             />
-            <span>Auto Refresh (4s)</span>
+            <span>Auto Refresh</span>
           </label>
 
           <button
             onClick={handleCleanCache}
-            className="px-3.5 py-2 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-200 text-xs font-semibold border border-neutral-700 transition-colors"
+            className="px-3 py-1.5 rounded-lg bg-white hover:bg-neutral-50 text-neutral-700 text-xs font-medium border border-neutral-300 transition-colors"
           >
-            Clear Stale Cache
+            Clear Cache
           </button>
         </div>
       </div>
 
       {/* Jobs Table */}
-      <div className="rounded-2xl bg-neutral-900/80 border border-neutral-800 overflow-hidden">
+      <div className="rounded-xl bg-white border border-neutral-200 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
             <thead>
-              <tr className="border-b border-neutral-800 text-neutral-400 font-mono uppercase text-[10px] bg-neutral-950/40">
-                <th className="py-3.5 px-4">Job ID</th>
-                <th className="py-3.5 px-4">Video / Task</th>
-                <th className="py-3.5 px-4">Type</th>
-                <th className="py-3.5 px-4">Quality</th>
-                <th className="py-3.5 px-4">Status & Step</th>
-                <th className="py-3.5 px-4">Progress</th>
-                <th className="py-3.5 px-4 text-right">Actions</th>
+              <tr className="border-b border-neutral-200 bg-neutral-50 text-neutral-600 font-medium">
+                <th className="py-2.5 px-4">Job ID</th>
+                <th className="py-2.5 px-4">Task Details</th>
+                <th className="py-2.5 px-4">Type</th>
+                <th className="py-2.5 px-4">Quality</th>
+                <th className="py-2.5 px-4">Status & Step</th>
+                <th className="py-2.5 px-4">Progress</th>
+                <th className="py-2.5 px-4 text-right">Action</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-neutral-800/60 font-mono">
+            <tbody className="divide-y divide-neutral-200 text-neutral-800">
               {jobs.map((job) => (
-                <tr key={job.id} className="hover:bg-neutral-800/30 transition-colors">
-                  <td className="py-3.5 px-4 font-semibold text-neutral-300">
-                    {job.id.slice(0, 8)}...
+                <tr key={job.id} className="hover:bg-neutral-50 transition-colors">
+                  <td className="py-2.5 px-4 font-mono text-neutral-500">
+                    {job.id.slice(0, 8)}…
                   </td>
 
-                  <td className="py-3.5 px-4 max-w-xs font-sans">
-                    <p className="font-semibold text-white truncate">{job.title || 'Video'}</p>
+                  <td className="py-2.5 px-4 max-w-xs">
+                    <p className="font-medium text-neutral-900 truncate">{job.title || 'Video'}</p>
                     <a
                       href={job.url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-[11px] text-neutral-500 hover:text-neutral-400 truncate block"
+                      className="text-[11px] text-neutral-400 hover:text-neutral-600 truncate block"
                     >
                       {job.url}
                     </a>
                   </td>
 
-                  <td className="py-3.5 px-4">
-                    <span
-                      className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
-                        job.isFullVideo
-                          ? 'bg-purple-950 text-purple-300 border border-purple-800/60'
-                          : 'bg-red-950 text-red-300 border border-red-800/60'
-                      }`}
-                    >
-                      {job.isFullVideo ? 'Full Video' : 'Trim Clip'}
+                  <td className="py-2.5 px-4">
+                    <span className="px-1.5 py-0.5 rounded bg-neutral-100 border border-neutral-200 text-neutral-700 text-[10px] font-medium uppercase">
+                      {job.isFullVideo ? 'Full Video' : 'Trim'}
                     </span>
                   </td>
 
-                  <td className="py-3.5 px-4 text-neutral-300 font-semibold">
+                  <td className="py-2.5 px-4 text-neutral-700 font-medium">
                     {job.selectedQuality ? `${job.selectedQuality}p` : 'Auto'}
                   </td>
 
-                  <td className="py-3.5 px-4">
-                    <div className="space-y-1">
+                  <td className="py-2.5 px-4">
+                    <div className="space-y-0.5">
                       <span
-                        className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                        className={`inline-block px-1.5 py-0.2 rounded text-[10px] font-medium uppercase ${
                           job.status === 'completed'
-                            ? 'bg-emerald-950 text-emerald-400 border border-emerald-800/50'
+                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                             : job.status === 'processing'
-                            ? 'bg-blue-950 text-blue-400 border border-blue-800/50 animate-pulse'
+                            ? 'bg-blue-50 text-blue-700 border border-blue-200'
                             : job.status === 'failed'
-                            ? 'bg-red-950 text-red-400 border border-red-800/50'
-                            : 'bg-neutral-800 text-neutral-400'
+                            ? 'bg-red-50 text-red-700 border border-red-200'
+                            : 'bg-neutral-100 text-neutral-600'
                         }`}
                       >
-                        {job.status === 'processing' && <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-ping" />}
                         {job.status}
                       </span>
-                      <p className="text-[11px] text-neutral-500 truncate max-w-xs font-sans">{job.step}</p>
+                      <p className="text-[11px] text-neutral-500 truncate max-w-xs">{job.step}</p>
                     </div>
                   </td>
 
-                  <td className="py-3.5 px-4">
-                    <div className="w-24 space-y-1">
-                      <div className="flex items-center justify-between text-[10px]">
-                        <span className="text-neutral-400">{job.progress}%</span>
-                      </div>
-                      <div className="w-full h-1.5 rounded-full bg-neutral-800 overflow-hidden">
+                  <td className="py-2.5 px-4">
+                    <div className="w-20 space-y-1">
+                      <span className="text-[10px] text-neutral-500">{job.progress}%</span>
+                      <div className="w-full h-1.5 rounded-full bg-neutral-100 overflow-hidden">
                         <div
                           style={{ width: `${job.progress}%` }}
-                          className={`h-full rounded-full transition-all ${
+                          className={`h-full rounded-full ${
                             job.status === 'completed'
-                              ? 'bg-emerald-500'
+                              ? 'bg-emerald-600'
                               : job.status === 'failed'
-                              ? 'bg-red-500'
-                              : 'bg-blue-500'
+                              ? 'bg-red-600'
+                              : 'bg-neutral-900'
                           }`}
                         />
                       </div>
                     </div>
                   </td>
 
-                  <td className="py-3.5 px-4 text-right">
-                    <div className="flex items-center justify-end gap-2">
+                  <td className="py-2.5 px-4 text-right">
+                    <div className="flex items-center justify-end gap-1.5">
                       {job.error && (
                         <button
                           onClick={() => setSelectedJob(job)}
-                          className="px-2.5 py-1 rounded-lg bg-red-950/80 hover:bg-red-900 border border-red-800/60 text-red-300 text-[11px] font-semibold"
+                          className="px-2 py-0.5 rounded bg-red-50 hover:bg-red-100 border border-red-200 text-red-700 text-[11px] font-medium"
                         >
-                          Error Log
+                          Error
                         </button>
                       )}
 
                       {(job.status === 'processing' || job.status === 'queued') && (
                         <button
                           onClick={() => handleCancelJob(job.id)}
-                          className="px-2.5 py-1 rounded-lg bg-red-600 hover:bg-red-500 text-white text-[11px] font-bold"
+                          className="px-2 py-0.5 rounded bg-neutral-900 hover:bg-black text-white text-[11px] font-medium"
                         >
                           Abort
                         </button>
@@ -260,8 +244,8 @@ export default function AdminJobsPage() {
 
               {jobs.length === 0 && !isLoading && (
                 <tr>
-                  <td colSpan={7} className="py-12 text-center text-neutral-500 font-sans">
-                    No active or recent jobs found in the worker memory queue.
+                  <td colSpan={7} className="py-8 text-center text-neutral-400">
+                    No active jobs in the queue.
                   </td>
                 </tr>
               )}
@@ -272,44 +256,38 @@ export default function AdminJobsPage() {
 
       {/* Error Details Modal */}
       {selectedJob && (
-        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="w-full max-w-lg rounded-2xl bg-neutral-900 border border-neutral-800 p-6 shadow-2xl space-y-4">
-            <div className="flex items-center justify-between border-b border-neutral-800 pb-3">
-              <h3 className="text-base font-bold text-white flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-red-500" />
-                Job Error Diagnostics
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="w-full max-w-lg rounded-xl bg-white border border-neutral-200 p-5 shadow-xl space-y-3">
+            <div className="flex items-center justify-between border-b border-neutral-100 pb-3">
+              <h3 className="text-sm font-bold text-neutral-900">
+                Job Error Details
               </h3>
               <button
                 onClick={() => setSelectedJob(null)}
-                className="p-1 rounded-lg hover:bg-neutral-800 text-neutral-400 hover:text-white"
+                className="p-1 rounded hover:bg-neutral-100 text-neutral-400 hover:text-neutral-700"
               >
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
             </div>
 
-            <div className="space-y-2 text-xs">
-              <p className="text-neutral-400">
-                Job ID: <strong className="text-neutral-200 font-mono">{selectedJob.id}</strong>
-              </p>
-              <p className="text-neutral-400">
-                Target URL: <strong className="text-neutral-200 font-mono break-all">{selectedJob.url}</strong>
-              </p>
+            <div className="space-y-1.5 text-xs text-neutral-600">
+              <p>Job ID: <strong className="text-neutral-900 font-mono">{selectedJob.id}</strong></p>
+              <p>URL: <span className="font-mono text-neutral-700 break-all">{selectedJob.url}</span></p>
             </div>
 
-            <div className="p-4 rounded-xl bg-neutral-950 border border-neutral-800">
-              <p className="text-[11px] font-mono text-neutral-400 uppercase tracking-wider mb-2">Error Stderr Output:</p>
-              <pre className="text-xs text-red-300 font-mono whitespace-pre-wrap break-all max-h-60 overflow-y-auto leading-relaxed">
+            <div className="p-3 rounded-lg bg-neutral-50 border border-neutral-200">
+              <pre className="text-xs text-neutral-800 font-mono whitespace-pre-wrap break-all max-h-56 overflow-y-auto">
                 {selectedJob.error || 'No error details recorded.'}
               </pre>
             </div>
 
             <button
               onClick={() => setSelectedJob(null)}
-              className="w-full py-2.5 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-white font-semibold text-xs transition-colors"
+              className="w-full py-2 rounded-lg bg-neutral-900 hover:bg-black text-white font-medium text-xs transition-colors"
             >
-              Close Diagnostics
+              Close
             </button>
           </div>
         </div>
@@ -317,4 +295,3 @@ export default function AdminJobsPage() {
     </div>
   );
 }
-
