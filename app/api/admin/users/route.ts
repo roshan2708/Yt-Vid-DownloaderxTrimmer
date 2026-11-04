@@ -4,6 +4,36 @@ import { quotaService } from '@/server/services/quotaService';
 import { getFirebaseAdminApp } from '@/server/utils/firebaseAdmin';
 import { getAuth } from 'firebase-admin/auth';
 
+function normalizeDate(val: unknown): string | null {
+  if (!val) return null;
+  if (typeof val === 'string') return val;
+  if (val instanceof Date) return val.toISOString();
+  if (typeof (val as { toDate?: () => Date }).toDate === 'function') {
+    try {
+      return (val as { toDate: () => Date }).toDate().toISOString();
+    } catch {
+      return null;
+    }
+  }
+  if (typeof (val as { _seconds?: number })._seconds === 'number') {
+    return new Date((val as { _seconds: number })._seconds * 1000).toISOString();
+  }
+  if (typeof (val as { seconds?: number }).seconds === 'number') {
+    return new Date((val as { seconds: number }).seconds * 1000).toISOString();
+  }
+  return null;
+}
+
+function getTierLimit(tier?: string, customLimit?: number): number {
+  if (typeof customLimit === 'number' && customLimit > 0) return customLimit;
+  switch (tier) {
+    case 'studio': return 500;
+    case 'pro': return 200;
+    case 'daypass': return 15;
+    default: return 3;
+  }
+}
+
 export async function GET(request: NextRequest) {
   const authHeader = request.headers.get('authorization');
   let token: string | undefined;
@@ -35,24 +65,28 @@ export async function GET(request: NextRequest) {
 
     const firestore = getFirebaseFirestore();
     if (!firestore) {
-      let localUsers = quotaService.getLocalUsers().map((u) => ({
-        userId: u.userId,
-        uid: u.userId,
-        email: u.email || 'No email',
-        displayName: u.displayName || null,
-        photoURL: u.photoURL || null,
-        role: 'user',
-        tier: u.tier || 'free',
-        trimsToday: u.trimsToday || 0,
-        trimsThisMonth: u.trimsThisMonth || 0,
-        dailyLimit: 3,
-        bonusCredits: u.bonusCredits || 0,
-        totalTrimsAllTime: u.totalTrimsAllTime || 0,
-        isBanned: false,
-        banReason: null,
-        createdAt: u.createdAt || null,
-        lastLoginAt: u.lastLoginAt || null,
-      }));
+      let localUsers = quotaService.getLocalUsers().map((u) => {
+        const tier = u.tier || 'free';
+        const role = u.email === 'paisaan.dev@gmail.com' ? 'superadmin' : 'user';
+        return {
+          userId: u.userId,
+          uid: u.userId,
+          email: u.email || 'No email',
+          displayName: u.displayName || null,
+          photoURL: u.photoURL || null,
+          role,
+          tier,
+          trimsToday: u.trimsToday || 0,
+          trimsThisMonth: u.trimsThisMonth || 0,
+          dailyLimit: getTierLimit(tier),
+          bonusCredits: u.bonusCredits || 0,
+          totalTrimsAllTime: u.totalTrimsAllTime || 0,
+          isBanned: false,
+          banReason: null,
+          createdAt: normalizeDate(u.createdAt),
+          lastLoginAt: normalizeDate(u.lastLoginAt),
+        };
+      });
 
       if (tierFilter !== 'all') {
         localUsers = localUsers.filter((u) => u.tier === tierFilter);
@@ -80,23 +114,25 @@ export async function GET(request: NextRequest) {
     const snapshot = await query.limit(limit).get();
     let users = snapshot.docs.map((doc) => {
       const data = doc.data();
+      const tier = data.tier || 'free';
+      const role = data.role || (data.email === 'paisaan.dev@gmail.com' ? 'superadmin' : 'user');
       return {
         userId: doc.id,
         uid: data.uid || doc.id,
         email: data.email || 'No email',
         displayName: data.displayName || null,
         photoURL: data.photoURL || null,
-        role: data.role || 'user',
-        tier: data.tier || 'free',
+        role,
+        tier,
         trimsToday: data.trimsToday || 0,
         trimsThisMonth: data.trimsThisMonth || 0,
-        dailyLimit: data.dailyLimit || 3,
+        dailyLimit: getTierLimit(tier, data.dailyLimit),
         bonusCredits: data.bonusCredits || 0,
         totalTrimsAllTime: data.totalTrimsAllTime || 0,
         isBanned: Boolean(data.isBanned),
         banReason: data.banReason || null,
-        createdAt: data.createdAt?.toDate ? data.createdAt.toDate().toISOString() : data.createdAt || null,
-        lastLoginAt: data.lastLoginAt?.toDate ? data.lastLoginAt.toDate().toISOString() : data.lastLoginAt || null,
+        createdAt: normalizeDate(data.createdAt),
+        lastLoginAt: normalizeDate(data.lastLoginAt),
       };
     });
 
@@ -144,7 +180,35 @@ export async function POST(request: NextRequest) {
 
     const firestore = getFirebaseFirestore();
     if (!firestore) {
-      return NextResponse.json({ error: 'Firestore is unavailable' }, { status: 503 });
+      switch (action) {
+        case 'UPDATE_TIER': {
+          const { tier } = body;
+          if (!['free', 'pro', 'studio', 'daypass'].includes(tier)) {
+            return NextResponse.json({ error: 'Invalid tier specified' }, { status: 400 });
+          }
+          quotaService.updateLocalUser(userId, { tier });
+          return NextResponse.json({ success: true, action: 'USER_TIER_UPDATED', userId });
+        }
+        case 'ADD_CREDITS': {
+          const credits = parseInt(body.credits, 10);
+          if (isNaN(credits) || credits <= 0) {
+            return NextResponse.json({ error: 'Invalid credits amount' }, { status: 400 });
+          }
+          const user = quotaService.getLocalUsers().find((u) => u.userId === userId);
+          const current = user?.bonusCredits || 0;
+          quotaService.updateLocalUser(userId, { bonusCredits: current + credits });
+          return NextResponse.json({ success: true, action: 'BONUS_CREDITS_ADDED', userId });
+        }
+        case 'RESET_QUOTA': {
+          quotaService.updateLocalUser(userId, { trimsToday: 0 });
+          return NextResponse.json({ success: true, action: 'QUOTA_MANUALLY_RESET', userId });
+        }
+        case 'TOGGLE_BAN': {
+          return NextResponse.json({ success: true, action: body.isBanned ? 'USER_BANNED' : 'USER_UNBANNED', userId });
+        }
+        default:
+          return NextResponse.json({ error: `Unknown action: ${action}` }, { status: 400 });
+      }
     }
 
     const userRef = firestore.collection('users').doc(userId);

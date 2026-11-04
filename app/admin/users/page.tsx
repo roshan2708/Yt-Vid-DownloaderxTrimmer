@@ -2,6 +2,8 @@
 
 import React, { useEffect, useState } from 'react';
 import { getCurrentIdToken } from '@/src/lib/auth';
+import { collection, getDocs, doc, updateDoc, serverTimestamp, increment } from 'firebase/firestore';
+import { db } from '@/src/lib/firebase';
 
 interface UserRecord {
   userId: string;
@@ -22,6 +24,55 @@ interface UserRecord {
   lastLoginAt: string | null;
 }
 
+function normalizeDate(val: unknown): string | null {
+  if (!val) return null;
+  if (typeof val === 'string') return val;
+  if (val instanceof Date) return val.toISOString();
+  if (typeof (val as { toDate?: () => Date }).toDate === 'function') {
+    try {
+      return (val as { toDate: () => Date }).toDate().toISOString();
+    } catch {
+      return null;
+    }
+  }
+  if (typeof (val as { _seconds?: number })._seconds === 'number') {
+    return new Date((val as { _seconds: number })._seconds * 1000).toISOString();
+  }
+  if (typeof (val as { seconds?: number }).seconds === 'number') {
+    return new Date((val as { seconds: number }).seconds * 1000).toISOString();
+  }
+  return null;
+}
+
+function formatDate(val: string | null | undefined): string {
+  if (!val) return '—';
+  try {
+    const d = new Date(val);
+    if (isNaN(d.getTime())) return '—';
+    return d.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    });
+  } catch {
+    return '—';
+  }
+}
+
+function getTierLimit(tier?: string, customLimit?: number): number {
+  if (typeof customLimit === 'number' && customLimit > 0) return customLimit;
+  switch (tier) {
+    case 'studio':
+      return 500;
+    case 'pro':
+      return 200;
+    case 'daypass':
+      return 15;
+    default:
+      return 3;
+  }
+}
+
 export default function AdminUsersPage() {
   const [users, setUsers] = useState<UserRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -40,19 +91,95 @@ export default function AdminUsersPage() {
     try {
       setIsLoading(true);
       const token = await getCurrentIdToken();
-      if (!token) return;
 
       const params = new URLSearchParams();
       if (search) params.set('search', search);
       if (tierFilter !== 'all') params.set('tier', tierFilter);
 
-      const res = await fetch(`/api/admin/users?${params.toString()}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setUsers(data.users || []);
+      // Parallel fetch: Call Server API AND query Cloud Firestore directly
+      const [serverRes, firestoreSnap] = await Promise.allSettled([
+        token
+          ? fetch(`/api/admin/users?${params.toString()}`, {
+              headers: { Authorization: `Bearer ${token}` },
+            }).then((r) => (r.ok ? r.json() : null))
+          : Promise.resolve(null),
+        db ? getDocs(collection(db, 'users')) : Promise.resolve(null),
+      ]);
+
+      const userMap = new Map<string, UserRecord>();
+
+      // 1. Ingest Cloud Firestore records (primary source of truth)
+      if (firestoreSnap.status === 'fulfilled' && firestoreSnap.value) {
+        for (const docSnap of firestoreSnap.value.docs) {
+          const d = docSnap.data();
+          const email = (d.email || '').toLowerCase().trim();
+          const isSuper = email === 'paisaan.dev@gmail.com';
+          const role = isSuper ? 'superadmin' : (d.role as 'user' | 'admin' | 'superadmin') || 'user';
+          const tier = (d.tier as 'free' | 'pro' | 'studio' | 'daypass') || 'free';
+
+          const record: UserRecord = {
+            userId: docSnap.id,
+            uid: d.uid || docSnap.id,
+            email: d.email || 'No email',
+            displayName: d.displayName || null,
+            photoURL: d.photoURL || null,
+            role,
+            tier,
+            trimsToday: typeof d.trimsToday === 'number' ? d.trimsToday : 0,
+            trimsThisMonth: typeof d.trimsThisMonth === 'number' ? d.trimsThisMonth : 0,
+            dailyLimit: getTierLimit(tier, d.dailyLimit),
+            bonusCredits: typeof d.bonusCredits === 'number' ? d.bonusCredits : 0,
+            totalTrimsAllTime: typeof d.totalTrimsAllTime === 'number' ? d.totalTrimsAllTime : 0,
+            isBanned: Boolean(d.isBanned),
+            banReason: d.banReason || undefined,
+            createdAt: normalizeDate(d.createdAt),
+            lastLoginAt: normalizeDate(d.lastLoginAt),
+          };
+          userMap.set(record.userId, record);
+        }
       }
+
+      // 2. Ingest Server API records (merges quota counters and offline records)
+      if (serverRes.status === 'fulfilled' && serverRes.value?.users) {
+        for (const sUser of serverRes.value.users as UserRecord[]) {
+          const existing = userMap.get(sUser.userId);
+          if (!existing) {
+            userMap.set(sUser.userId, sUser);
+          } else {
+            // Keep the highest trim count
+            if (sUser.trimsToday > existing.trimsToday) existing.trimsToday = sUser.trimsToday;
+            if (sUser.totalTrimsAllTime > existing.totalTrimsAllTime) {
+              existing.totalTrimsAllTime = sUser.totalTrimsAllTime;
+            }
+          }
+        }
+      }
+
+      let list = Array.from(userMap.values());
+
+      // Apply client-side filters
+      if (tierFilter !== 'all') {
+        list = list.filter((u) => u.tier === tierFilter);
+      }
+
+      if (search) {
+        const q = search.toLowerCase().trim();
+        list = list.filter(
+          (u) =>
+            u.email.toLowerCase().includes(q) ||
+            (u.displayName && u.displayName.toLowerCase().includes(q)) ||
+            u.userId.toLowerCase().includes(q)
+        );
+      }
+
+      // Sort by newest joined first
+      list.sort((a, b) => {
+        const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        return timeB - timeA;
+      });
+
+      setUsers(list);
     } catch (err) {
       console.error('Failed to query users:', err);
     } finally {
@@ -73,34 +200,70 @@ export default function AdminUsersPage() {
     setActionSuccess(null);
 
     try {
+      let isSuccess = false;
+
+      // 1. Update Cloud Firestore directly
+      if (db) {
+        try {
+          const userDocRef = doc(db, 'users', selectedUser.userId);
+          const updates: Record<string, unknown> = {
+            updatedAt: serverTimestamp(),
+          };
+
+          if (payload.action === 'UPDATE_TIER') {
+            updates.tier = payload.tier;
+            updates.dailyLimit = getTierLimit(payload.tier as string);
+          } else if (payload.action === 'ADD_CREDITS') {
+            updates.bonusCredits = increment(Number(payload.credits) || 0);
+          } else if (payload.action === 'RESET_QUOTA') {
+            updates.trimsToday = 0;
+            updates.remainingToday = selectedUser.dailyLimit;
+          } else if (payload.action === 'TOGGLE_BAN') {
+            updates.isBanned = Boolean(payload.isBanned);
+            if (payload.reason) updates.banReason = payload.reason;
+          }
+
+          await updateDoc(userDocRef, updates);
+          isSuccess = true;
+        } catch (dbErr) {
+          console.warn('[Admin Users] Firestore direct update error:', dbErr);
+        }
+      }
+
+      // 2. Also notify Server API to sync local quotas and audit logs
       const token = await getCurrentIdToken();
-      if (!token) return;
+      if (token) {
+        try {
+          const res = await fetch('/api/admin/users', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+              ...payload,
+              userId: selectedUser.userId,
+            }),
+          });
+          if (res.ok) isSuccess = true;
+        } catch {
+          // ignore server notification error
+        }
+      }
 
-      const res = await fetch('/api/admin/users', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          ...payload,
-          userId: selectedUser.userId,
-        }),
-      });
-
-      if (res.ok) {
+      if (isSuccess) {
         setActionSuccess('User updated successfully.');
         await fetchUsers();
         setTimeout(() => {
           setSelectedUser(null);
           setActionSuccess(null);
-        }, 1000);
+        }, 1200);
       } else {
-        const err = await res.json();
-        alert(err.error || 'Operation failed');
+        alert('Could not update user document.');
       }
-    } catch {
-      alert('Network request failed');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Operation failed';
+      alert(msg);
     } finally {
       setIsSubmitting(false);
     }
@@ -111,17 +274,26 @@ export default function AdminUsersPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h1 className="text-lg font-bold text-neutral-900 tracking-tight">User Quota Management</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-lg font-bold text-neutral-900 tracking-tight">User Management</h1>
+            <span className="px-2 py-0.5 rounded-full bg-neutral-100 border border-neutral-200 text-[11px] font-medium text-neutral-600">
+              {users.length} {users.length === 1 ? 'user' : 'users'}
+            </span>
+          </div>
           <p className="text-xs text-neutral-500 mt-0.5">
-            Search registered users, upgrade subscription tiers, and moderate quotas
+            Cloud Firestore real-time user accounts, subscription tiers, and quota moderation
           </p>
         </div>
 
         <button
           onClick={fetchUsers}
-          className="px-3 py-1.5 rounded-lg bg-white hover:bg-neutral-50 text-neutral-700 text-xs font-medium border border-neutral-300 transition-colors self-start sm:self-auto"
+          disabled={isLoading}
+          className="px-3 py-1.5 rounded-lg bg-white hover:bg-neutral-50 text-neutral-700 text-xs font-medium border border-neutral-300 transition-colors self-start sm:self-auto flex items-center gap-1.5"
         >
-          Refresh Users
+          <svg className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+          <span>Refresh</span>
         </button>
       </div>
 
@@ -143,13 +315,13 @@ export default function AdminUsersPage() {
         <select
           value={tierFilter}
           onChange={(e) => setTierFilter(e.target.value)}
-          className="w-full sm:w-40 px-3 py-2 rounded-lg bg-white border border-neutral-300 text-neutral-700 text-xs focus:outline-none focus:ring-1 focus:ring-neutral-900"
+          className="w-full sm:w-44 px-3 py-2 rounded-lg bg-white border border-neutral-300 text-neutral-700 text-xs focus:outline-none focus:ring-1 focus:ring-neutral-900"
         >
           <option value="all">All Tiers</option>
-          <option value="free">Free Starter</option>
-          <option value="pro">Creator Pro</option>
-          <option value="studio">Studio Power</option>
-          <option value="daypass">24-Hour Pass</option>
+          <option value="free">Starter (3/day)</option>
+          <option value="pro">Creator Pro (200/mo)</option>
+          <option value="studio">Studio Power (500/mo)</option>
+          <option value="daypass">24-Hour Pass (15/day)</option>
         </select>
       </div>
 
@@ -163,7 +335,8 @@ export default function AdminUsersPage() {
                 <th className="py-2.5 px-4">Role</th>
                 <th className="py-2.5 px-4">Tier</th>
                 <th className="py-2.5 px-4">Quota Today</th>
-                <th className="py-2.5 px-4">Bonus Credits</th>
+                <th className="py-2.5 px-4">Bonus</th>
+                <th className="py-2.5 px-4">Joined</th>
                 <th className="py-2.5 px-4">Status</th>
                 <th className="py-2.5 px-4 text-right">Actions</th>
               </tr>
@@ -174,26 +347,34 @@ export default function AdminUsersPage() {
                   <td className="py-2.5 px-4">
                     <div className="flex items-center gap-2.5">
                       {u.photoURL ? (
-                        <img src={u.photoURL} alt="" className="w-7 h-7 rounded-full object-cover border border-neutral-200" />
+                        <img src={u.photoURL} alt="" className="w-7 h-7 rounded-full object-cover border border-neutral-200 shrink-0" />
                       ) : (
-                        <div className="w-7 h-7 rounded-full bg-neutral-100 border border-neutral-200 flex items-center justify-center font-bold text-neutral-600 uppercase text-[11px]">
+                        <div className="w-7 h-7 rounded-full bg-neutral-100 border border-neutral-200 flex items-center justify-center font-bold text-neutral-600 uppercase text-[11px] shrink-0">
                           {u.email.charAt(0)}
                         </div>
                       )}
-                      <div>
-                        <p className="font-medium text-neutral-900">{u.displayName || 'No Name'}</p>
+                      <div className="min-w-0">
+                        <p className="font-medium text-neutral-900 truncate">{u.displayName || 'No Name'}</p>
                         <p className="text-[11px] text-neutral-400 font-mono truncate max-w-xs">{u.email}</p>
                       </div>
                     </div>
                   </td>
 
-                  <td className="py-2.5 px-4">
-                    <span className="px-1.5 py-0.5 rounded bg-neutral-100 border border-neutral-200 text-neutral-700 text-[10px] font-mono uppercase">
+                  <td className="py-2.5 px-4 whitespace-nowrap">
+                    <span
+                      className={`px-1.5 py-0.5 rounded text-[10px] font-mono uppercase ${
+                        u.role === 'superadmin'
+                          ? 'bg-purple-50 text-purple-700 border border-purple-200 font-semibold'
+                          : u.role === 'admin'
+                          ? 'bg-blue-50 text-blue-700 border border-blue-200 font-semibold'
+                          : 'bg-neutral-100 text-neutral-600 border border-neutral-200'
+                      }`}
+                    >
                       {u.role}
                     </span>
                   </td>
 
-                  <td className="py-2.5 px-4">
+                  <td className="py-2.5 px-4 whitespace-nowrap">
                     <span
                       className={`px-1.5 py-0.5 rounded text-[10px] font-medium uppercase ${
                         u.tier === 'studio'
@@ -209,15 +390,19 @@ export default function AdminUsersPage() {
                     </span>
                   </td>
 
-                  <td className="py-2.5 px-4 font-medium text-neutral-800">
+                  <td className="py-2.5 px-4 whitespace-nowrap font-medium text-neutral-800">
                     {u.trimsToday} / {u.dailyLimit}
                   </td>
 
-                  <td className="py-2.5 px-4 text-neutral-600">
+                  <td className="py-2.5 px-4 whitespace-nowrap text-neutral-600">
                     +{u.bonusCredits}
                   </td>
 
-                  <td className="py-2.5 px-4">
+                  <td className="py-2.5 px-4 whitespace-nowrap text-neutral-500 text-[11px]">
+                    {formatDate(u.createdAt)}
+                  </td>
+
+                  <td className="py-2.5 px-4 whitespace-nowrap">
                     {u.isBanned ? (
                       <span className="px-1.5 py-0.5 rounded bg-red-100 text-red-800 text-[10px] font-medium">
                         Suspended
@@ -229,7 +414,7 @@ export default function AdminUsersPage() {
                     )}
                   </td>
 
-                  <td className="py-2.5 px-4 text-right">
+                  <td className="py-2.5 px-4 text-right whitespace-nowrap">
                     <button
                       onClick={() => {
                         setSelectedUser(u);
@@ -246,7 +431,7 @@ export default function AdminUsersPage() {
 
               {users.length === 0 && !isLoading && (
                 <tr>
-                  <td colSpan={7} className="py-8 text-center text-neutral-400">
+                  <td colSpan={8} className="py-8 text-center text-neutral-400">
                     No users found matching query.
                   </td>
                 </tr>

@@ -144,6 +144,15 @@ export class QuotaService {
     return Array.from(this.localCache.values());
   }
 
+  public updateLocalUser(userId: string, updates: Partial<UserQuotaRecord>): void {
+    const existing = this.localCache.get(userId);
+    if (existing) {
+      Object.assign(existing, updates);
+      existing.updatedAt = new Date().toISOString();
+      this.saveLocalCache();
+    }
+  }
+
   public getUtcDateString(): string {
     return new Date().toISOString().slice(0, 10); // "YYYY-MM-DD"
   }

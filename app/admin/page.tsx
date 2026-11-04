@@ -4,6 +4,8 @@ import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { getCurrentIdToken } from '@/src/lib/auth';
 import { useAdminAuth } from '@/src/context/AdminAuthContext';
+import { collection, getDocs } from 'firebase/firestore';
+import { db } from '@/src/lib/firebase';
 
 interface OverviewData {
   admin: {
@@ -71,6 +73,17 @@ export default function AdminOverviewPage() {
       });
       if (res.ok) {
         const json = await res.json();
+        // If server lacks service account and reports 0 users, fetch direct count from Firestore
+        if (json.kpi?.totalUsers === 0 && db) {
+          try {
+            const snap = await getDocs(collection(db, 'users'));
+            if (snap.size > 0) {
+              json.kpi.totalUsers = snap.size;
+            }
+          } catch {
+            // ignore
+          }
+        }
         setData(json);
       }
     } catch (err) {
