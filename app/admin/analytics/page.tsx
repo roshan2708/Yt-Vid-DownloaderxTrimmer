@@ -4,6 +4,16 @@ import React, { useEffect, useState } from 'react';
 import { getCurrentIdToken } from '@/src/lib/auth';
 import { collection, getDocs } from 'firebase/firestore';
 import { db } from '@/src/lib/firebase';
+import {
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+} from 'recharts';
 
 interface DailyRecord {
   date: string;
@@ -13,6 +23,7 @@ interface DailyRecord {
   failuresCount: number;
   bytesProcessed: number;
   newUsersCount?: number;
+  label?: string;
 }
 
 interface AnalyticsData {
@@ -74,11 +85,56 @@ function parseDateKey(val: unknown): string | null {
   return null;
 }
 
+interface TooltipPayloadEntry {
+  name: string;
+  value: number;
+  color?: string;
+  fill?: string;
+  payload?: { date?: string; label?: string };
+}
+
+interface CustomTooltipProps {
+  active?: boolean;
+  payload?: TooltipPayloadEntry[];
+  label?: string;
+}
+
+function CustomChartTooltip({ active, payload, label }: CustomTooltipProps) {
+  if (active && payload && payload.length) {
+    const fullDate = payload[0]?.payload?.date || label;
+    return (
+      <div className="bg-white border border-neutral-200 p-2.5 rounded-lg shadow-sm text-xs">
+        <p className="font-semibold text-neutral-900 mb-1.5">{fullDate}</p>
+        <div className="space-y-1">
+          {payload.map((entry, index) => (
+            <div key={`item-${index}`} className="flex items-center justify-between gap-4 text-neutral-600">
+              <span className="flex items-center gap-1.5">
+                <span
+                  className="w-2 h-2 rounded-full shrink-0"
+                  style={{ backgroundColor: entry.color || entry.fill }}
+                />
+                <span>{entry.name}:</span>
+              </span>
+              <strong className="text-neutral-900 font-mono">{entry.value}</strong>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+  return null;
+}
+
 export default function AdminAnalyticsPage() {
   const [timeframe, setTimeframe] = useState<number>(14);
   const [data, setData] = useState<AnalyticsData | null>(null);
   const [userMetrics, setUserMetrics] = useState<UserMetrics | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   const fetchAnalytics = async (days: number) => {
     try {
@@ -98,6 +154,13 @@ export default function AdminAnalyticsPage() {
       let analyticsJson: AnalyticsData | null = null;
       if (serverRes.status === 'fulfilled' && serverRes.value) {
         analyticsJson = serverRes.value;
+        // Enrich dailyRecords with MM-DD label for XAxis
+        if (analyticsJson?.dailyRecords) {
+          analyticsJson.dailyRecords = analyticsJson.dailyRecords.map((d) => ({
+            ...d,
+            label: d.date.slice(5),
+          }));
+        }
         setData(analyticsJson);
       }
 
@@ -111,9 +174,6 @@ export default function AdminAnalyticsPage() {
         dateList.push(str);
         dateMap.set(str, 0);
       }
-
-      const timeframeCutoff = new Date();
-      timeframeCutoff.setUTCDate(timeframeCutoff.getUTCDate() - days);
 
       let totalUsers = 0;
       let newUsersInPeriod = 0;
@@ -174,16 +234,6 @@ export default function AdminAnalyticsPage() {
   useEffect(() => {
     fetchAnalytics(timeframe);
   }, [timeframe]);
-
-  const maxVideoVolume = Math.max(
-    1,
-    ...(data?.dailyRecords.map((d) => d.totalTrims + d.totalFullDownloads) || [10])
-  );
-
-  const maxRegistrations = Math.max(
-    1,
-    ...(userMetrics?.dailyRegistrations.map((r) => r.count) || [5])
-  );
 
   return (
     <div className="space-y-6">
@@ -275,7 +325,7 @@ export default function AdminAnalyticsPage() {
         </div>
       </div>
 
-      {/* SECTION 2: DAILY REGISTRATIONS CHART */}
+      {/* SECTION 2: DAILY REGISTRATIONS CHART (RECHARTS RESPONSIVE) */}
       <div className="p-5 rounded-xl bg-white border border-neutral-200">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
           <div>
@@ -298,35 +348,44 @@ export default function AdminAnalyticsPage() {
           </div>
         </div>
 
-        {/* Clean Registration Bar Chart */}
-        <div className="h-44 flex items-end gap-1.5 pt-4 pb-2 border-b border-neutral-200 overflow-x-auto">
-          {userMetrics?.dailyRegistrations.map((r) => {
-            const barH = (r.count / maxRegistrations) * 100;
-            return (
-              <div key={r.date} className="flex-1 min-w-[24px] h-full flex flex-col justify-end items-center group relative">
-                {/* Hover Tooltip */}
-                <div className="absolute -top-9 z-20 hidden group-hover:flex flex-col items-center bg-white border border-neutral-200 px-2.5 py-1 rounded shadow-md text-[10px] text-neutral-800 whitespace-nowrap pointer-events-none">
-                  <span className="font-semibold">{r.date}</span>
-                  <span className="text-neutral-600">{r.count} {r.count === 1 ? 'user registered' : 'users registered'}</span>
-                </div>
-
-                <div className="w-full max-w-[18px] flex flex-col justify-end items-center h-full">
-                  {r.count > 0 ? (
-                    <div
-                      style={{ height: `${Math.max(8, barH)}%` }}
-                      className="w-full bg-neutral-900 hover:bg-black rounded-t transition-colors"
-                    />
-                  ) : (
-                    <div className="w-full h-1 bg-neutral-200 rounded" />
-                  )}
-                </div>
-
-                <span className="text-[10px] text-neutral-400 mt-2 font-mono">
-                  {r.label}
-                </span>
-              </div>
-            );
-          })}
+        {/* Recharts Responsive Container */}
+        <div className="h-64 w-full pt-2">
+          {isMounted && userMetrics?.dailyRegistrations ? (
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart
+                data={userMetrics.dailyRegistrations}
+                margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F3F4F6" />
+                <XAxis
+                  dataKey="label"
+                  stroke="#9CA3AF"
+                  fontSize={11}
+                  tickLine={false}
+                  axisLine={{ stroke: '#E5E7EB' }}
+                />
+                <YAxis
+                  stroke="#9CA3AF"
+                  fontSize={11}
+                  tickLine={false}
+                  axisLine={false}
+                  allowDecimals={false}
+                />
+                <Tooltip content={<CustomChartTooltip />} />
+                <Bar
+                  dataKey="count"
+                  name="New Users"
+                  fill="#171717"
+                  radius={[4, 4, 0, 0]}
+                  maxBarSize={40}
+                />
+              </BarChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="h-full w-full flex items-center justify-center bg-neutral-50 rounded-lg text-neutral-400 text-xs">
+              Loading registration chart...
+            </div>
+          )}
         </div>
       </div>
 
@@ -372,7 +431,7 @@ export default function AdminAnalyticsPage() {
         </div>
       </div>
 
-      {/* SECTION 4: DAILY VIDEO VOLUME BREAKDOWN */}
+      {/* SECTION 4: DAILY VIDEO VOLUME BREAKDOWN (RECHARTS RESPONSIVE) */}
       <div className="p-5 rounded-xl bg-white border border-neutral-200">
         <div className="flex items-center justify-between mb-4">
           <div>
@@ -380,60 +439,61 @@ export default function AdminAnalyticsPage() {
               Daily Video Volume
             </h2>
             <p className="text-xs text-neutral-500 mt-0.5">
-              Trimmed clips (red) vs. full video downloads (gray)
+              Clips trimmed vs. full video downloads
             </p>
-          </div>
-          <div className="flex items-center gap-3 text-xs">
-            <span className="flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded-sm bg-red-600" />
-              <span className="text-neutral-600">Trims</span>
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded-sm bg-neutral-800" />
-              <span className="text-neutral-600">Full</span>
-            </span>
           </div>
         </div>
 
-        {/* Video Volume Chart Bars */}
-        <div className="h-48 flex items-end gap-1.5 pt-4 pb-2 border-b border-neutral-200 overflow-x-auto">
-          {data?.dailyRecords.map((d) => {
-            const trimsH = (d.totalTrims / maxVideoVolume) * 100;
-            const fullH = (d.totalFullDownloads / maxVideoVolume) * 100;
-            const dayLabel = d.date.slice(5);
-
-            return (
-              <div key={d.date} className="flex-1 min-w-[24px] h-full flex flex-col justify-end items-center group relative">
-                {/* Tooltip on hover */}
-                <div className="absolute -top-10 z-20 hidden group-hover:flex flex-col items-center bg-white border border-neutral-200 px-2 py-1 rounded text-[10px] text-neutral-800 shadow-md whitespace-nowrap pointer-events-none">
-                  <span className="font-semibold">{d.date}</span>
-                  <span className="text-neutral-600">{d.totalTrims} trims, {d.totalFullDownloads} full</span>
-                </div>
-
-                <div className="w-full max-w-[16px] flex flex-col justify-end items-center gap-0.5 h-full">
-                  {fullH > 0 && (
-                    <div
-                      style={{ height: `${Math.max(4, fullH)}%` }}
-                      className="w-full bg-neutral-800 rounded-t"
-                    />
-                  )}
-                  {trimsH > 0 && (
-                    <div
-                      style={{ height: `${Math.max(4, trimsH)}%` }}
-                      className="w-full bg-red-600 rounded-t"
-                    />
-                  )}
-                  {fullH === 0 && trimsH === 0 && (
-                    <div className="w-full h-1 bg-neutral-200 rounded" />
-                  )}
-                </div>
-
-                <span className="text-[10px] text-neutral-400 mt-2 font-mono">
-                  {dayLabel}
-                </span>
-              </div>
-            );
-          })}
+        {/* Recharts Responsive Container for Video Volume */}
+        <div className="h-64 w-full pt-2">
+          {isMounted && data?.dailyRecords ? (
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart
+                data={data.dailyRecords}
+                margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F3F4F6" />
+                <XAxis
+                  dataKey="label"
+                  stroke="#9CA3AF"
+                  fontSize={11}
+                  tickLine={false}
+                  axisLine={{ stroke: '#E5E7EB' }}
+                />
+                <YAxis
+                  stroke="#9CA3AF"
+                  fontSize={11}
+                  tickLine={false}
+                  axisLine={false}
+                  allowDecimals={false}
+                />
+                <Tooltip content={<CustomChartTooltip />} />
+                <Legend
+                  wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }}
+                  iconType="circle"
+                  iconSize={8}
+                />
+                <Bar
+                  dataKey="totalTrims"
+                  name="Video Trims"
+                  fill="#DC2626"
+                  radius={[4, 4, 0, 0]}
+                  maxBarSize={35}
+                />
+                <Bar
+                  dataKey="totalFullDownloads"
+                  name="Full Downloads"
+                  fill="#525252"
+                  radius={[4, 4, 0, 0]}
+                  maxBarSize={35}
+                />
+              </BarChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="h-full w-full flex items-center justify-center bg-neutral-50 rounded-lg text-neutral-400 text-xs">
+              Loading video volume chart...
+            </div>
+          )}
         </div>
       </div>
 
