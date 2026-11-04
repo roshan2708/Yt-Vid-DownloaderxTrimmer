@@ -2,6 +2,8 @@
 
 import React, { useEffect, useState } from 'react';
 import { getCurrentIdToken } from '@/src/lib/auth';
+import { collection, getDocs } from 'firebase/firestore';
+import { db } from '@/src/lib/firebase';
 
 interface DailyRecord {
   date: string;
@@ -10,6 +12,7 @@ interface DailyRecord {
   qualityBreakdown: Record<string, number>;
   failuresCount: number;
   bytesProcessed: number;
+  newUsersCount?: number;
 }
 
 interface AnalyticsData {
@@ -22,8 +25,26 @@ interface AnalyticsData {
     totalJobs: number;
     successRate: number;
     qualityTotals: Record<string, number>;
+    userAnalytics?: {
+      totalUsers: number;
+      newUsersInPeriod: number;
+      tierCounts: Record<string, number>;
+    };
   };
   dailyRecords: DailyRecord[];
+}
+
+interface UserMetrics {
+  totalUsers: number;
+  newUsersInPeriod: number;
+  activeUsersInPeriod: number;
+  paidUsersCount: number;
+  tierCounts: Record<string, number>;
+  dailyRegistrations: Array<{
+    date: string;
+    count: number;
+    label: string;
+  }>;
 }
 
 function formatBytes(bytes: number): string {
@@ -33,24 +54,116 @@ function formatBytes(bytes: number): string {
   return `${(bytes / Math.pow(1024, i)).toFixed(1)} ${units[i]}`;
 }
 
+function parseDateKey(val: unknown): string | null {
+  if (!val) return null;
+  if (typeof val === 'string') return val.slice(0, 10);
+  if (val instanceof Date) return val.toISOString().slice(0, 10);
+  if (typeof (val as { toDate?: () => Date }).toDate === 'function') {
+    try {
+      return (val as { toDate: () => Date }).toDate().toISOString().slice(0, 10);
+    } catch {
+      return null;
+    }
+  }
+  if (typeof (val as { _seconds?: number })._seconds === 'number') {
+    return new Date((val as { _seconds: number })._seconds * 1000).toISOString().slice(0, 10);
+  }
+  if (typeof (val as { seconds?: number }).seconds === 'number') {
+    return new Date((val as { seconds: number }).seconds * 1000).toISOString().slice(0, 10);
+  }
+  return null;
+}
+
 export default function AdminAnalyticsPage() {
   const [timeframe, setTimeframe] = useState<number>(14);
   const [data, setData] = useState<AnalyticsData | null>(null);
+  const [userMetrics, setUserMetrics] = useState<UserMetrics | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   const fetchAnalytics = async (days: number) => {
     try {
       setIsLoading(true);
       const token = await getCurrentIdToken();
-      if (!token) return;
 
-      const res = await fetch(`/api/admin/analytics?days=${days}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (res.ok) {
-        const json = await res.json();
-        setData(json);
+      // Parallel fetch: Server analytics route + Cloud Firestore users
+      const [serverRes, firestoreSnap] = await Promise.allSettled([
+        token
+          ? fetch(`/api/admin/analytics?days=${days}`, {
+              headers: { Authorization: `Bearer ${token}` },
+            }).then((r) => (r.ok ? r.json() : null))
+          : Promise.resolve(null),
+        db ? getDocs(collection(db, 'users')) : Promise.resolve(null),
+      ]);
+
+      let analyticsJson: AnalyticsData | null = null;
+      if (serverRes.status === 'fulfilled' && serverRes.value) {
+        analyticsJson = serverRes.value;
+        setData(analyticsJson);
       }
+
+      // Compute User Analytics
+      const dateList: string[] = [];
+      const dateMap = new Map<string, number>();
+      for (let i = days - 1; i >= 0; i--) {
+        const d = new Date();
+        d.setUTCDate(d.getUTCDate() - i);
+        const str = d.toISOString().slice(0, 10);
+        dateList.push(str);
+        dateMap.set(str, 0);
+      }
+
+      const timeframeCutoff = new Date();
+      timeframeCutoff.setUTCDate(timeframeCutoff.getUTCDate() - days);
+
+      let totalUsers = 0;
+      let newUsersInPeriod = 0;
+      let activeUsersInPeriod = 0;
+      let paidUsersCount = 0;
+      const tierCounts: Record<string, number> = { free: 0, pro: 0, studio: 0, daypass: 0 };
+
+      if (firestoreSnap.status === 'fulfilled' && firestoreSnap.value) {
+        const docs = firestoreSnap.value.docs;
+        totalUsers = docs.length;
+
+        for (const doc of docs) {
+          const u = doc.data();
+          const tier = u.tier || 'free';
+          tierCounts[tier] = (tierCounts[tier] || 0) + 1;
+          if (tier === 'pro' || tier === 'studio' || tier === 'daypass') {
+            paidUsersCount++;
+          }
+
+          const createdDate = parseDateKey(u.createdAt);
+          if (createdDate && dateMap.has(createdDate)) {
+            dateMap.set(createdDate, (dateMap.get(createdDate) || 0) + 1);
+            newUsersInPeriod++;
+          }
+
+          const loginDate = parseDateKey(u.lastLoginAt);
+          if (loginDate && loginDate >= dateList[0]) {
+            activeUsersInPeriod++;
+          }
+        }
+      } else if (analyticsJson?.summary?.userAnalytics) {
+        totalUsers = analyticsJson.summary.userAnalytics.totalUsers;
+        newUsersInPeriod = analyticsJson.summary.userAnalytics.newUsersInPeriod;
+        Object.assign(tierCounts, analyticsJson.summary.userAnalytics.tierCounts);
+      }
+
+      const dailyRegistrations = dateList.map((d) => ({
+        date: d,
+        count: dateMap.get(d) || 0,
+        label: d.slice(5), // "MM-DD"
+      }));
+
+      setUserMetrics({
+        totalUsers,
+        newUsersInPeriod,
+        activeUsersInPeriod,
+        paidUsersCount,
+        tierCounts,
+        dailyRegistrations,
+      });
     } catch (err) {
       console.error('Failed to load analytics:', err);
     } finally {
@@ -62,9 +175,14 @@ export default function AdminAnalyticsPage() {
     fetchAnalytics(timeframe);
   }, [timeframe]);
 
-  const maxVolume = Math.max(
+  const maxVideoVolume = Math.max(
     1,
     ...(data?.dailyRecords.map((d) => d.totalTrims + d.totalFullDownloads) || [10])
+  );
+
+  const maxRegistrations = Math.max(
+    1,
+    ...(userMetrics?.dailyRegistrations.map((r) => r.count) || [5])
   );
 
   return (
@@ -72,9 +190,9 @@ export default function AdminAnalyticsPage() {
       {/* Header & Filter Controls */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h1 className="text-lg font-bold text-neutral-900 tracking-tight">Usage & Volume Analytics</h1>
+          <h1 className="text-lg font-bold text-neutral-900 tracking-tight">Platform & User Analytics</h1>
           <p className="text-xs text-neutral-500 mt-0.5">
-            Aggregated traffic, video quality choices, and processing metrics
+            Real-time telemetry, user registrations, usage volume, and reliability metrics
           </p>
         </div>
 
@@ -95,52 +213,174 @@ export default function AdminAnalyticsPage() {
         </div>
       </div>
 
-      {/* KPI Stats Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="p-4 rounded-xl bg-white border border-neutral-200">
-          <p className="text-xs font-medium text-neutral-500">Total Video Trims</p>
-          <p className="text-2xl font-bold text-neutral-900 mt-1.5">
-            {isLoading ? '...' : data?.summary.totalTrims.toLocaleString()}
-          </p>
-          <p className="text-[11px] text-neutral-400 mt-0.5">Trimmed video clips</p>
-        </div>
+      {/* SECTION 1: USER REGISTRATIONS & ACCOUNTS KPIS */}
+      <div>
+        <h2 className="text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-2.5">
+          User Growth & Registration KPIs
+        </h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {/* Total Registered Users */}
+          <div className="p-4 rounded-xl bg-white border border-neutral-200">
+            <div className="flex items-center justify-between text-neutral-500 text-xs">
+              <span>Total Users</span>
+              <svg className="w-4 h-4 text-neutral-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+              </svg>
+            </div>
+            <p className="text-2xl font-bold text-neutral-900 mt-1.5">
+              {isLoading ? '...' : (userMetrics?.totalUsers || 0).toLocaleString()}
+            </p>
+            <p className="text-[11px] text-neutral-400 mt-0.5">Cloud Firestore registered accounts</p>
+          </div>
 
-        <div className="p-4 rounded-xl bg-white border border-neutral-200">
-          <p className="text-xs font-medium text-neutral-500">Full Video Downloads</p>
-          <p className="text-2xl font-bold text-neutral-900 mt-1.5">
-            {isLoading ? '...' : data?.summary.totalFullDownloads.toLocaleString()}
-          </p>
-          <p className="text-[11px] text-neutral-400 mt-0.5">Complete videos retrieved</p>
-        </div>
+          {/* New Signups in Period */}
+          <div className="p-4 rounded-xl bg-white border border-neutral-200">
+            <div className="flex items-center justify-between text-neutral-500 text-xs">
+              <span>New Signups</span>
+              <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">
+                +{timeframe}d
+              </span>
+            </div>
+            <p className="text-2xl font-bold text-neutral-900 mt-1.5">
+              {isLoading ? '...' : (userMetrics?.newUsersInPeriod || 0).toLocaleString()}
+            </p>
+            <p className="text-[11px] text-neutral-400 mt-0.5">Registered in last {timeframe} days</p>
+          </div>
 
-        <div className="p-4 rounded-xl bg-white border border-neutral-200">
-          <p className="text-xs font-medium text-neutral-500">Data Processed</p>
-          <p className="text-2xl font-bold text-neutral-900 mt-1.5">
-            {isLoading ? '...' : formatBytes(data?.summary.totalBytes || 0)}
-          </p>
-          <p className="text-[11px] text-neutral-400 mt-0.5">Total network & cache volume</p>
-        </div>
+          {/* Active Users */}
+          <div className="p-4 rounded-xl bg-white border border-neutral-200">
+            <div className="flex items-center justify-between text-neutral-500 text-xs">
+              <span>Active in Period</span>
+              <span className="w-2 h-2 rounded-full bg-emerald-500" />
+            </div>
+            <p className="text-2xl font-bold text-neutral-900 mt-1.5">
+              {isLoading ? '...' : (userMetrics?.activeUsersInPeriod || 0).toLocaleString()}
+            </p>
+            <p className="text-[11px] text-neutral-400 mt-0.5">Logged in within last {timeframe} days</p>
+          </div>
 
-        <div className="p-4 rounded-xl bg-white border border-neutral-200">
-          <p className="text-xs font-medium text-neutral-500">Success Rate</p>
-          <p className="text-2xl font-bold text-neutral-900 mt-1.5">
-            {isLoading ? '...' : `${data?.summary.successRate}%`}
-          </p>
-          <p className="text-[11px] text-neutral-400 mt-0.5">
-            {data?.summary.totalFailures} failures recorded
-          </p>
+          {/* Premium / Paid Users */}
+          <div className="p-4 rounded-xl bg-white border border-neutral-200">
+            <div className="flex items-center justify-between text-neutral-500 text-xs">
+              <span>Paid Tiers</span>
+              <span className="text-[10px] uppercase font-mono px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200">
+                Pro / Studio
+              </span>
+            </div>
+            <p className="text-2xl font-bold text-neutral-900 mt-1.5">
+              {isLoading ? '...' : (userMetrics?.paidUsersCount || 0).toLocaleString()}
+            </p>
+            <p className="text-[11px] text-neutral-400 mt-0.5">Creator Pro, Studio, or Daypass</p>
+          </div>
         </div>
       </div>
 
-      {/* Bar Chart Container */}
+      {/* SECTION 2: DAILY REGISTRATIONS CHART */}
+      <div className="p-5 rounded-xl bg-white border border-neutral-200">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
+          <div>
+            <h2 className="text-xs font-semibold text-neutral-900 uppercase tracking-wider flex items-center gap-2">
+              <span>Daily User Registrations</span>
+              <span className="px-2 py-0.5 rounded-full bg-neutral-100 text-neutral-600 text-[10px] normal-case font-medium">
+                Last {timeframe} days
+              </span>
+            </h2>
+            <p className="text-xs text-neutral-500 mt-0.5">
+              New user accounts registered per day
+            </p>
+          </div>
+          <div className="flex items-center gap-2 text-xs text-neutral-600">
+            <span className="w-2.5 h-2.5 rounded-sm bg-neutral-900" />
+            <span>New Accounts</span>
+            <span className="text-neutral-400 font-mono text-[11px]">
+              (Total: {userMetrics?.newUsersInPeriod || 0})
+            </span>
+          </div>
+        </div>
+
+        {/* Clean Registration Bar Chart */}
+        <div className="h-44 flex items-end gap-1.5 pt-4 pb-2 border-b border-neutral-200 overflow-x-auto">
+          {userMetrics?.dailyRegistrations.map((r) => {
+            const barH = (r.count / maxRegistrations) * 100;
+            return (
+              <div key={r.date} className="flex-1 min-w-[24px] h-full flex flex-col justify-end items-center group relative">
+                {/* Hover Tooltip */}
+                <div className="absolute -top-9 z-20 hidden group-hover:flex flex-col items-center bg-white border border-neutral-200 px-2.5 py-1 rounded shadow-md text-[10px] text-neutral-800 whitespace-nowrap pointer-events-none">
+                  <span className="font-semibold">{r.date}</span>
+                  <span className="text-neutral-600">{r.count} {r.count === 1 ? 'user registered' : 'users registered'}</span>
+                </div>
+
+                <div className="w-full max-w-[18px] flex flex-col justify-end items-center h-full">
+                  {r.count > 0 ? (
+                    <div
+                      style={{ height: `${Math.max(8, barH)}%` }}
+                      className="w-full bg-neutral-900 hover:bg-black rounded-t transition-colors"
+                    />
+                  ) : (
+                    <div className="w-full h-1 bg-neutral-200 rounded" />
+                  )}
+                </div>
+
+                <span className="text-[10px] text-neutral-400 mt-2 font-mono">
+                  {r.label}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* SECTION 3: VIDEO PROCESSING & TRAFFIC KPIS */}
+      <div>
+        <h2 className="text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-2.5">
+          Video Processing & Traffic KPIs
+        </h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="p-4 rounded-xl bg-white border border-neutral-200">
+            <p className="text-xs font-medium text-neutral-500">Video Clips Trimmed</p>
+            <p className="text-2xl font-bold text-neutral-900 mt-1.5">
+              {isLoading ? '...' : data?.summary.totalTrims.toLocaleString()}
+            </p>
+            <p className="text-[11px] text-neutral-400 mt-0.5">Trimmed video segments</p>
+          </div>
+
+          <div className="p-4 rounded-xl bg-white border border-neutral-200">
+            <p className="text-xs font-medium text-neutral-500">Full Video Downloads</p>
+            <p className="text-2xl font-bold text-neutral-900 mt-1.5">
+              {isLoading ? '...' : data?.summary.totalFullDownloads.toLocaleString()}
+            </p>
+            <p className="text-[11px] text-neutral-400 mt-0.5">Complete videos downloaded</p>
+          </div>
+
+          <div className="p-4 rounded-xl bg-white border border-neutral-200">
+            <p className="text-xs font-medium text-neutral-500">Data Processed</p>
+            <p className="text-2xl font-bold text-neutral-900 mt-1.5">
+              {isLoading ? '...' : formatBytes(data?.summary.totalBytes || 0)}
+            </p>
+            <p className="text-[11px] text-neutral-400 mt-0.5">Network & cache throughput</p>
+          </div>
+
+          <div className="p-4 rounded-xl bg-white border border-neutral-200">
+            <p className="text-xs font-medium text-neutral-500">Processing Success Rate</p>
+            <p className="text-2xl font-bold text-neutral-900 mt-1.5">
+              {isLoading ? '...' : `${data?.summary.successRate}%`}
+            </p>
+            <p className="text-[11px] text-neutral-400 mt-0.5">
+              {data?.summary.totalFailures} failures recorded
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* SECTION 4: DAILY VIDEO VOLUME BREAKDOWN */}
       <div className="p-5 rounded-xl bg-white border border-neutral-200">
         <div className="flex items-center justify-between mb-4">
           <div>
             <h2 className="text-xs font-semibold text-neutral-900 uppercase tracking-wider">
-              Daily Volume Breakdown
+              Daily Video Volume
             </h2>
             <p className="text-xs text-neutral-500 mt-0.5">
-              Clips trimmed (red) vs. full video downloads (gray)
+              Trimmed clips (red) vs. full video downloads (gray)
             </p>
           </div>
           <div className="flex items-center gap-3 text-xs">
@@ -155,12 +395,12 @@ export default function AdminAnalyticsPage() {
           </div>
         </div>
 
-        {/* Clean Chart Bars */}
-        <div className="h-56 flex items-end gap-1.5 pt-4 pb-2 border-b border-neutral-200 overflow-x-auto">
+        {/* Video Volume Chart Bars */}
+        <div className="h-48 flex items-end gap-1.5 pt-4 pb-2 border-b border-neutral-200 overflow-x-auto">
           {data?.dailyRecords.map((d) => {
-            const trimsH = (d.totalTrims / maxVolume) * 100;
-            const fullH = (d.totalFullDownloads / maxVolume) * 100;
-            const dayLabel = d.date.slice(5); // "MM-DD"
+            const trimsH = (d.totalTrims / maxVideoVolume) * 100;
+            const fullH = (d.totalFullDownloads / maxVideoVolume) * 100;
+            const dayLabel = d.date.slice(5);
 
             return (
               <div key={d.date} className="flex-1 min-w-[24px] h-full flex flex-col justify-end items-center group relative">
@@ -197,15 +437,66 @@ export default function AdminAnalyticsPage() {
         </div>
       </div>
 
-      {/* Two Column Layout: Resolution Mix & Reliability */}
+      {/* SECTION 5: SUBSCRIPTION TIERS & RESOLUTION DISTRIBUTION */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Quality Mix */}
+        {/* Subscription Tier Distribution */}
+        <div className="p-5 rounded-xl bg-white border border-neutral-200 space-y-3">
+          <div>
+            <h2 className="text-xs font-semibold text-neutral-900 uppercase tracking-wider">
+              Subscription Tier Distribution
+            </h2>
+            <p className="text-xs text-neutral-500 mt-0.5">Registered accounts grouped by subscription plan</p>
+          </div>
+
+          <div className="space-y-3 pt-2">
+            {[
+              { id: 'free', name: 'Starter (Free)', allowance: '3 trims / day' },
+              { id: 'daypass', name: '24-Hour Pass', allowance: '15 trims / day' },
+              { id: 'pro', name: 'Creator Pro', allowance: '200 trims / month' },
+              { id: 'studio', name: 'Studio Power', allowance: '500 trims / month' },
+            ].map((tier) => {
+              const count = userMetrics?.tierCounts?.[tier.id] || 0;
+              const total = userMetrics?.totalUsers || 1;
+              const pct = ((count / total) * 100).toFixed(1);
+
+              return (
+                <div key={tier.id} className="space-y-1">
+                  <div className="flex items-center justify-between text-xs">
+                    <div>
+                      <span className="font-medium text-neutral-800">{tier.name}</span>
+                      <span className="text-neutral-400 text-[11px] ml-1.5">({tier.allowance})</span>
+                    </div>
+                    <span className="text-neutral-600 font-mono text-[11px]">
+                      {count} ({pct}%)
+                    </span>
+                  </div>
+                  <div className="w-full h-1.5 rounded-full bg-neutral-100 overflow-hidden">
+                    <div
+                      style={{ width: `${pct}%` }}
+                      className={`h-full rounded-full ${
+                        tier.id === 'studio'
+                          ? 'bg-neutral-900'
+                          : tier.id === 'pro'
+                          ? 'bg-blue-600'
+                          : tier.id === 'daypass'
+                          ? 'bg-amber-500'
+                          : 'bg-neutral-400'
+                      }`}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Resolution Distribution */}
         <div className="p-5 rounded-xl bg-white border border-neutral-200 space-y-3">
           <div>
             <h2 className="text-xs font-semibold text-neutral-900 uppercase tracking-wider">
               Resolution Distribution
             </h2>
-            <p className="text-xs text-neutral-500 mt-0.5">Most frequently selected output resolutions</p>
+            <p className="text-xs text-neutral-500 mt-0.5">Most frequently requested output resolutions</p>
           </div>
 
           <div className="space-y-3 pt-2">
@@ -218,7 +509,7 @@ export default function AdminAnalyticsPage() {
                 <div key={quality} className="space-y-1">
                   <div className="flex items-center justify-between text-xs">
                     <span className="font-medium text-neutral-700">
-                      {quality}p {quality === '2160' ? '(4K)' : quality === '1080' ? '(HD)' : ''}
+                      {quality}p {quality === '2160' ? '(4K UHD)' : quality === '1080' ? '(Full HD)' : ''}
                     </span>
                     <span className="text-neutral-500 text-[11px]">{count} ({percentage}%)</span>
                   </div>
@@ -233,42 +524,6 @@ export default function AdminAnalyticsPage() {
                 </div>
               );
             })}
-          </div>
-        </div>
-
-        {/* Reliability Overview */}
-        <div className="p-5 rounded-xl bg-white border border-neutral-200 flex flex-col justify-between">
-          <div>
-            <h2 className="text-xs font-semibold text-neutral-900 uppercase tracking-wider">
-              Pipeline Health
-            </h2>
-            <p className="text-xs text-neutral-500 mt-0.5">Job completion rate vs error occurrences</p>
-
-            <div className="flex items-center justify-center py-6">
-              <div className="w-28 h-28 rounded-full border-4 border-neutral-200 flex flex-col items-center justify-center">
-                <span className="text-2xl font-bold text-neutral-900">
-                  {data?.summary.successRate}%
-                </span>
-                <span className="text-[10px] text-neutral-400 font-medium uppercase mt-0.5">Success</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="p-3 rounded-lg bg-neutral-50 border border-neutral-200 text-xs text-neutral-600 space-y-1.5">
-            <div className="flex items-center justify-between">
-              <span>Total Jobs Processed:</span>
-              <strong className="text-neutral-900">{data?.summary.totalJobs}</strong>
-            </div>
-            <div className="flex items-center justify-between">
-              <span>Successful Completions:</span>
-              <strong className="text-neutral-900">
-                {(data?.summary.totalTrims || 0) + (data?.summary.totalFullDownloads || 0)}
-              </strong>
-            </div>
-            <div className="flex items-center justify-between">
-              <span>Failed / Blocked by YouTube:</span>
-              <strong className="text-red-700">{data?.summary.totalFailures}</strong>
-            </div>
           </div>
         </div>
       </div>

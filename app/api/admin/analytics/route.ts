@@ -1,6 +1,27 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyAdminToken } from '@/server/utils/firebaseAdmin';
+import { getFirebaseFirestore, verifyAdminToken } from '@/server/utils/firebaseAdmin';
 import { analyticsService } from '@/server/services/analyticsService';
+import { quotaService } from '@/server/services/quotaService';
+
+function normalizeDateStr(val: unknown): string | null {
+  if (!val) return null;
+  if (typeof val === 'string') return val.slice(0, 10);
+  if (val instanceof Date) return val.toISOString().slice(0, 10);
+  if (typeof (val as { toDate?: () => Date }).toDate === 'function') {
+    try {
+      return (val as { toDate: () => Date }).toDate().toISOString().slice(0, 10);
+    } catch {
+      return null;
+    }
+  }
+  if (typeof (val as { _seconds?: number })._seconds === 'number') {
+    return new Date((val as { _seconds: number })._seconds * 1000).toISOString().slice(0, 10);
+  }
+  if (typeof (val as { seconds?: number }).seconds === 'number') {
+    return new Date((val as { seconds: number }).seconds * 1000).toISOString().slice(0, 10);
+  }
+  return null;
+}
 
 export async function GET(request: NextRequest) {
   const authHeader = request.headers.get('authorization');
@@ -52,6 +73,47 @@ export async function GET(request: NextRequest) {
     const totalJobs = totalTrims + totalFullDownloads + totalFailures;
     const successRate = totalJobs > 0 ? ((totalTrims + totalFullDownloads) / totalJobs) * 100 : 100;
 
+    // Aggregate User Analytics
+    let totalUsersCount = 0;
+    const tierCounts: Record<string, number> = { free: 0, pro: 0, studio: 0, daypass: 0 };
+    const dailyRegistrations: Record<string, number> = {};
+    let newUsersInPeriod = 0;
+
+    // Date range boundaries
+    const dateRangeSet = new Set(dailyRecords.map((d) => d.date));
+
+    const firestore = getFirebaseFirestore();
+    let rawUsers: Array<{ tier?: string; createdAt?: unknown; lastLoginAt?: unknown }> = [];
+
+    if (firestore) {
+      try {
+        const snap = await firestore.collection('users').get();
+        rawUsers = snap.docs.map((doc) => doc.data());
+      } catch {
+        rawUsers = quotaService.getLocalUsers();
+      }
+    } else {
+      rawUsers = quotaService.getLocalUsers();
+    }
+
+    totalUsersCount = rawUsers.length;
+    for (const u of rawUsers) {
+      const tier = u.tier || 'free';
+      tierCounts[tier] = (tierCounts[tier] || 0) + 1;
+
+      const createdDate = normalizeDateStr(u.createdAt);
+      if (createdDate && dateRangeSet.has(createdDate)) {
+        dailyRegistrations[createdDate] = (dailyRegistrations[createdDate] || 0) + 1;
+        newUsersInPeriod += 1;
+      }
+    }
+
+    // Populate dailyRecords with newUsersCount
+    const enrichedDailyRecords = dailyRecords.map((d) => ({
+      ...d,
+      newUsersCount: dailyRegistrations[d.date] || 0,
+    }));
+
     return NextResponse.json({
       days,
       summary: {
@@ -62,8 +124,13 @@ export async function GET(request: NextRequest) {
         totalJobs,
         successRate: parseFloat(successRate.toFixed(1)),
         qualityTotals,
+        userAnalytics: {
+          totalUsers: totalUsersCount,
+          newUsersInPeriod,
+          tierCounts,
+        },
       },
-      dailyRecords,
+      dailyRecords: enrichedDailyRecords,
     });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : 'Failed to retrieve analytics';
