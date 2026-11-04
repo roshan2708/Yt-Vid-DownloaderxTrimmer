@@ -1,5 +1,6 @@
 import { getApp, getApps, initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider } from 'firebase/auth';
+import { getFirestore } from 'firebase/firestore';
 import { Analytics, getAnalytics, isSupported } from 'firebase/analytics';
 
 const firebaseConfig = {
@@ -17,6 +18,9 @@ const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 
 // Initialize Auth
 const auth = getAuth(app);
+
+// Initialize Firestore Database
+const db = getFirestore(app);
 
 // Initialize Google Auth Provider
 const googleProvider = new GoogleAuthProvider();
@@ -38,4 +42,4 @@ if (typeof window !== 'undefined') {
     });
 }
 
-export { app, auth, googleProvider, analytics };
+export { app, auth, db, googleProvider, analytics };

@@ -47,7 +47,11 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const quota = await quotaService.getUserQuota(user.uid, user.email);
+    const quota = await quotaService.getUserQuota(user.uid, {
+      email: user.email,
+      displayName: user.name,
+      photoURL: user.picture,
+    });
     return NextResponse.json(quota);
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Failed to retrieve user quota.';

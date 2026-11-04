@@ -77,15 +77,6 @@ export function getFirebaseAdminApp(): App | null {
 export function getFirebaseFirestore(): Firestore | null {
   if (firestoreInstance) return firestoreInstance;
 
-  const hasCredentials = Boolean(
-    (process.env.FIREBASE_CLIENT_EMAIL && process.env.FIREBASE_PRIVATE_KEY) ||
-      process.env.GOOGLE_APPLICATION_CREDENTIALS
-  );
-
-  if (!hasCredentials) {
-    return null;
-  }
-
   const app = getFirebaseAdminApp();
   if (!app) return null;
 

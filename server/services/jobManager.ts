@@ -11,7 +11,7 @@ if (!fs.existsSync(DISK_TEMP_DIR)) {
 // High-speed RAM disk support: On Linux, use /dev/shm for near-instant I/O on clips
 export const RAM_TEMP_DIR = (() => {
   if (process.platform === 'linux' && fs.existsSync('/dev/shm')) {
-    const shmDir = path.join('/dev/shm', 'cuttadaao_temp');
+    const shmDir = path.join('/dev/shm', 'clipdown_temp');
     try {
       if (!fs.existsSync(shmDir)) {
         fs.mkdirSync(shmDir, { recursive: true });
@@ -67,12 +67,12 @@ class JobManager {
       isFullVideo: params.isFullVideo,
       selectedQuality: params.selectedQuality,
       userId: params.userId,
+      quotaConsumed: params.quotaConsumed,
+      quotaSource: params.quotaSource,
       status: 'queued',
       step: 'Queued for processing...',
       progress: 0,
       createdAt: Date.now(),
-      quotaConsumed: params.quotaConsumed,
-      quotaSource: params.quotaSource,
     };
 
     this.jobs.set(id, job);

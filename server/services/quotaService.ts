@@ -85,12 +85,29 @@ class UserMutex {
 
 const mutex = new UserMutex();
 
+export interface UserMetadata {
+  email?: string;
+  displayName?: string;
+  photoURL?: string;
+}
+
 export class QuotaService {
   private firestoreOperational = true;
+  private lastFirestoreErrorTime = 0;
+  private readonly RETRY_FIRESTORE_MS = 60 * 1000; // Retry every 60s if an error occurred
   private localCache = new Map<string, UserQuotaRecord>();
 
   constructor() {
     this.loadLocalCache();
+  }
+
+  private isFirestoreReady(): boolean {
+    if (this.firestoreOperational) return true;
+    if (Date.now() - this.lastFirestoreErrorTime > this.RETRY_FIRESTORE_MS) {
+      this.firestoreOperational = true;
+      return true;
+    }
+    return false;
   }
 
   private loadLocalCache(): void {
@@ -142,21 +159,24 @@ export class QuotaService {
   /**
    * Internal reader: Attempts Firestore first, falls back to local JSON store
    */
-  private async readUserRecord(userId: string, email?: string): Promise<UserQuotaRecord> {
+  private async readUserRecord(userId: string, emailOrMeta?: string | UserMetadata): Promise<UserQuotaRecord> {
     const today = this.getUtcDateString();
     const currentMonth = this.getUtcMonthString();
     const firestore = getFirebaseFirestore();
+    const meta: UserMetadata = typeof emailOrMeta === 'string' ? { email: emailOrMeta } : (emailOrMeta || {});
 
-    if (firestore && this.firestoreOperational) {
+    if (firestore && this.isFirestoreReady()) {
       try {
         const docRef = firestore.collection('users').doc(userId);
         const snapshot = await docRef.get();
 
         if (snapshot.exists) {
           const data = snapshot.data() as Partial<UserQuotaRecord>;
-          return {
+          const updatedRecord: UserQuotaRecord = {
             userId,
-            email: data.email || email,
+            email: meta.email || data.email,
+            displayName: meta.displayName || data.displayName,
+            photoURL: meta.photoURL || data.photoURL,
             tier: (data.tier as UserTier) || 'free',
             trimsToday: typeof data.trimsToday === 'number' ? data.trimsToday : 0,
             lastResetDate: data.lastResetDate || today,
@@ -165,12 +185,33 @@ export class QuotaService {
             bonusCredits: typeof data.bonusCredits === 'number' ? data.bonusCredits : 0,
             totalTrimsAllTime: typeof data.totalTrimsAllTime === 'number' ? data.totalTrimsAllTime : 0,
             createdAt: data.createdAt || new Date().toISOString(),
-            updatedAt: data.updatedAt || new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            lastLoginAt: data.lastLoginAt || new Date().toISOString(),
           };
+
+          if (
+            (meta.displayName && meta.displayName !== data.displayName) ||
+            (meta.photoURL && meta.photoURL !== data.photoURL) ||
+            (meta.email && meta.email !== data.email)
+          ) {
+            await docRef.set(
+              {
+                email: updatedRecord.email,
+                displayName: updatedRecord.displayName,
+                photoURL: updatedRecord.photoURL,
+                updatedAt: updatedRecord.updatedAt,
+              },
+              { merge: true }
+            );
+          }
+
+          return updatedRecord;
         } else {
           const newRecord: UserQuotaRecord = {
             userId,
-            email,
+            email: meta.email,
+            displayName: meta.displayName,
+            photoURL: meta.photoURL,
             tier: 'free',
             trimsToday: 0,
             lastResetDate: today,
@@ -180,6 +221,7 @@ export class QuotaService {
             totalTrimsAllTime: 0,
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
+            lastLoginAt: new Date().toISOString(),
           };
           await docRef.set(newRecord);
           return newRecord;
@@ -188,6 +230,7 @@ export class QuotaService {
         if (this.firestoreOperational) {
           console.warn('[Cut Tadaao Quota] Firestore unavailable, using persistent local store:', (err as Error).message);
           this.firestoreOperational = false;
+          this.lastFirestoreErrorTime = Date.now();
         }
       }
     }
@@ -195,7 +238,9 @@ export class QuotaService {
     // Local persistent storage fallback
     const existing = this.localCache.get(userId);
     if (existing) {
-      if (email && !existing.email) existing.email = email;
+      if (meta.email && !existing.email) existing.email = meta.email;
+      if (meta.displayName && !existing.displayName) existing.displayName = meta.displayName;
+      if (meta.photoURL && !existing.photoURL) existing.photoURL = meta.photoURL;
       if (typeof existing.trimsThisMonth !== 'number') existing.trimsThisMonth = 0;
       if (!existing.lastResetMonth) existing.lastResetMonth = currentMonth;
       return existing;
@@ -203,7 +248,9 @@ export class QuotaService {
 
     const created: UserQuotaRecord = {
       userId,
-      email,
+      email: meta.email,
+      displayName: meta.displayName,
+      photoURL: meta.photoURL,
       tier: 'free',
       trimsToday: 0,
       lastResetDate: today,
@@ -213,6 +260,7 @@ export class QuotaService {
       totalTrimsAllTime: 0,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
+      lastLoginAt: new Date().toISOString(),
     };
     this.localCache.set(userId, created);
     this.saveLocalCache();
@@ -228,13 +276,14 @@ export class QuotaService {
     this.saveLocalCache();
 
     const firestore = getFirebaseFirestore();
-    if (firestore && this.firestoreOperational) {
+    if (firestore && this.isFirestoreReady()) {
       try {
         await firestore.collection('users').doc(record.userId).set(record, { merge: true });
       } catch (err) {
         if (this.firestoreOperational) {
           console.warn('[Cut Tadaao Quota] Firestore write failed, stored locally:', (err as Error).message);
           this.firestoreOperational = false;
+          this.lastFirestoreErrorTime = Date.now();
         }
       }
     }
@@ -266,9 +315,9 @@ export class QuotaService {
   /**
    * Public: Retrieves user quota status for frontend & display
    */
-  public async getUserQuota(userId: string, email?: string): Promise<UserQuotaResponse> {
+  public async getUserQuota(userId: string, emailOrMeta?: string | UserMetadata): Promise<UserQuotaResponse> {
     return mutex.runExclusive(userId, async () => {
-      const record = await this.readUserRecord(userId, email);
+      const record = await this.readUserRecord(userId, emailOrMeta);
       const wasReset = this.checkReset(record);
       if (wasReset) {
         await this.writeUserRecord(record);

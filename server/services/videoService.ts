@@ -48,7 +48,7 @@ function ensureBinariesPresent(): void {
       execSync(`node "${scriptPath}"`, { stdio: 'inherit', timeout: 90000 });
     }
   } catch (e) {
-    console.warn('[Cut Tadaao] Dynamic ensure-ytdlp failed:', e);
+    console.warn('[ClipDown] Dynamic ensure-ytdlp failed:', e);
   }
 }
 
@@ -106,7 +106,7 @@ export function getCookieFilePath(): string | null {
       fs.writeFileSync(tempCookiesPath, content, { encoding: 'utf-8' });
       return tempCookiesPath;
     } catch (e) {
-      console.warn('[Cut Tadaao] Failed to write cookies from env:', e);
+      console.warn('[ClipDown] Failed to write cookies from env:', e);
     }
   }
   return null;
@@ -237,7 +237,7 @@ export async function fetchFromInvidiousOrPiped(videoId: string): Promise<Direct
             }))
             .sort((a, b) => b.height - a.height);
 
-          console.log(`[Cut Tadaao] Successfully extracted ${qualities.length} qualities via Invidious for ${videoId}`);
+          console.log(`[ClipDown] Successfully extracted ${qualities.length} qualities via Invidious for ${videoId}`);
           return { videoId, title, duration, thumbnail, uploader, qualities, streams };
         }
       } else if (ep.type === 'piped') {
@@ -280,12 +280,12 @@ export async function fetchFromInvidiousOrPiped(videoId: string): Promise<Direct
             }))
             .sort((a, b) => b.height - a.height);
 
-          console.log(`[Cut Tadaao] Successfully extracted ${qualities.length} qualities via Piped for ${videoId}`);
+          console.log(`[ClipDown] Successfully extracted ${qualities.length} qualities via Piped for ${videoId}`);
           return { videoId, title, duration, thumbnail, uploader, qualities, streams };
         }
       }
     } catch (e) {
-      console.warn(`[Cut Tadaao] Endpoint ${ep.url} failed:`, e);
+      console.warn(`[ClipDown] Endpoint ${ep.url} failed:`, e);
     }
   }
   return null;
@@ -582,7 +582,7 @@ export async function fetchVideoMetadata(url: string): Promise<VideoMetadata> {
       }
     } catch (err: unknown) {
       ytDlpErrorObj = err instanceof Error ? err : new Error(String(err));
-      console.warn(`[Cut Tadaao] yt-dlp with client ${client} failed:`, ytDlpErrorObj.message);
+      console.warn(`[ClipDown] yt-dlp with client ${client} failed:`, ytDlpErrorObj.message);
     }
   }
 
@@ -607,7 +607,7 @@ export async function fetchVideoMetadata(url: string): Promise<VideoMetadata> {
         };
       }
     } catch (apiErr) {
-      console.warn('[Cut Tadaao] Invidious/Piped fallback failed:', apiErr);
+      console.warn('[ClipDown] Invidious/Piped fallback failed:', apiErr);
     }
   }
 
@@ -668,12 +668,12 @@ export async function fetchVideoMetadata(url: string): Promise<VideoMetadata> {
       };
     }
   } catch (probeErr: unknown) {
-    console.error('[Cut Tadaao] ffprobe metadata extraction failed:', probeErr);
+    console.error('[ClipDown] ffprobe metadata extraction failed:', probeErr);
   }
 
   // Generate actionable error message from stderr/error
   const fullErrorText = `${ytDlpStderr} ${ytDlpErrorObj?.message || ''}`.trim();
-  console.error('[Cut Tadaao] Video inspection failed details:', fullErrorText);
+  console.error('[ClipDown] Video inspection failed details:', fullErrorText);
 
   if (fullErrorText.includes('bot') || fullErrorText.includes('Sign in to confirm')) {
     throw new Error(
@@ -787,7 +787,7 @@ export async function processVideoJob(jobId: string): Promise<void> {
             success = true;
           }
         } catch (streamErr) {
-          console.warn('[Cut Tadaao] Direct stream FFmpeg failed, falling back to yt-dlp:', streamErr);
+          console.warn('[ClipDown] Direct stream FFmpeg failed, falling back to yt-dlp:', streamErr);
         }
       }
     }
@@ -945,9 +945,10 @@ export async function processVideoJob(jobId: string): Promise<void> {
       }
     }
 
-        // Edge Case: Automatically refund quota if consumed
     if (job?.quotaConsumed && job?.userId) {
-      quotaService.refundQuota(job.userId, job.quotaSource || 'daily').catch((refundErr) => console.error('[Cut Tadaao] Failed to refund quota:', refundErr));
+      quotaService
+        .refundQuota(job.userId, job.quotaSource || 'daily')
+        .catch((refundErr) => console.error('[ClipDown] Failed to refund quota:', refundErr));
     }
 
     jobManager.updateJob(jobId, {

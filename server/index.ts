@@ -68,7 +68,11 @@ app.get('/api/user/quota', requireAuth, async (req: AuthRequest, res: Response):
       res.status(401).json({ error: 'Unauthorized: Missing user identity.' });
       return;
     }
-    const quota = await quotaService.getUserQuota(userId, req.user?.email);
+    const quota = await quotaService.getUserQuota(userId, {
+      email: req.user?.email,
+      displayName: req.user?.name,
+      photoURL: req.user?.picture,
+    });
     res.json(quota);
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Failed to retrieve user quota.';

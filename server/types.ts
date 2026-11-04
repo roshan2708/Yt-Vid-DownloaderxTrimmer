@@ -16,6 +16,8 @@ export interface TierConfig {
 export interface UserQuotaRecord {
   userId: string;
   email?: string;
+  displayName?: string;
+  photoURL?: string;
   tier: UserTier;
   trimsToday: number;
   lastResetDate: string; // YYYY-MM-DD UTC
@@ -25,6 +27,7 @@ export interface UserQuotaRecord {
   totalTrimsAllTime: number;
   createdAt: string;
   updatedAt: string;
+  lastLoginAt?: string;
 }
 
 export interface UserQuotaResponse {

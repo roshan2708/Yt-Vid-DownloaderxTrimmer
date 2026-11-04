@@ -3,7 +3,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: cut-tadaao-app
+    container_name: clipdown-app
     restart: always
     env_file:
       - .env
@@ -24,7 +24,7 @@ services:
 
   caddy:
     image: caddy:2-alpine
-    container_name: cut-tadaao-proxy
+    container_name: clipdown-proxy
     restart: always
     ports:
       - "80:80"
