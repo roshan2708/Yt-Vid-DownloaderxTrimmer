@@ -422,7 +422,7 @@ export default function AdminContactsPage() {
                       </button>
 
                       <a
-                        href={`mailto:${m.email}?subject=Re: ${encodeURIComponent(m.topic)} - ClipDown Support`}
+                        href={`mailto:${m.email}?subject=Re: ${encodeURIComponent(m.topic)} - Cut Tadaao Support`}
                         className="p-1 rounded hover:bg-neutral-100 text-neutral-500 hover:text-neutral-900"
                         title="Reply via Email"
                       >
@@ -527,7 +527,7 @@ export default function AdminContactsPage() {
                 <a
                   href={`mailto:${selectedMessage.email}?subject=Re: ${encodeURIComponent(
                     selectedMessage.topic
-                  )} - ClipDown Support`}
+                  )} - Cut Tadaao Support`}
                   onClick={() => handleStatusChange(selectedMessage.id, 'replied')}
                   className="px-4 py-1.5 rounded-lg bg-neutral-900 hover:bg-black text-white text-xs font-medium transition-colors flex items-center gap-1.5"
                 >
@@ -544,3 +544,4 @@ export default function AdminContactsPage() {
     </div>
   );
 }
+

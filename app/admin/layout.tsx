@@ -94,7 +94,7 @@ function AdminShell({ children }: { children: React.ReactNode }) {
       <div className="md:hidden flex items-center justify-between px-4 py-3 bg-white border-b border-neutral-200 sticky top-0 z-50">
         <div className="flex items-center gap-2">
           <BrandLogo size="sm" />
-          <span className="font-bold text-sm tracking-tight text-neutral-900">ClipDown</span>
+          <span className="font-bold text-sm tracking-tight text-neutral-900">Cut Tadaao</span>
           <span className="px-1.5 py-0.5 rounded bg-neutral-100 border border-neutral-200 text-[10px] font-semibold text-neutral-600 uppercase">
             Admin
           </span>
@@ -134,7 +134,7 @@ function AdminShell({ children }: { children: React.ReactNode }) {
             <Link href="/admin" className="flex items-center gap-2.5">
               <BrandLogo size="sm" />
               <div className="flex items-center gap-1.5">
-                <span className="font-bold text-base tracking-tight text-neutral-900">ClipDown</span>
+                <span className="font-bold text-base tracking-tight text-neutral-900">Cut Tadaao</span>
                 <span className="px-1.5 py-0.2 rounded bg-neutral-100 border border-neutral-200 text-[10px] font-medium text-neutral-600 uppercase tracking-wider">
                   Admin
                 </span>

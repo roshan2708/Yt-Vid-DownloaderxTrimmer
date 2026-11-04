@@ -44,7 +44,7 @@ function AdminLoginContent() {
         <div className="text-center mb-6">
           <Link href="/" className="inline-flex items-center justify-center gap-2 mb-3">
             <BrandLogo size="md" />
-            <span className="text-lg font-bold tracking-tight text-neutral-900">ClipDown</span>
+            <span className="text-lg font-bold tracking-tight text-neutral-900">Cut Tadaao</span>
           </Link>
           <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-neutral-100 border border-neutral-200 text-neutral-700 text-[11px] font-medium mb-2">
             <span className="w-1.5 h-1.5 rounded-full bg-neutral-900" />
@@ -134,7 +134,7 @@ function AdminLoginContent() {
 
           <div className="mt-5 pt-4 border-t border-neutral-100 flex items-center justify-between text-xs text-neutral-500">
             <Link href="/" className="hover:text-neutral-800 transition-colors">
-              &larr; Back to ClipDown
+              &larr; Back to Cut Tadaao
             </Link>
             <span className="text-[11px] text-neutral-400">Admin Auth</span>
           </div>

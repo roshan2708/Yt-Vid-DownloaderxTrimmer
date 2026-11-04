@@ -2,6 +2,8 @@
 
 import React, { useEffect, useState } from 'react';
 import { getCurrentIdToken } from '@/src/lib/auth';
+import { collection, getDocs, query, orderBy, limit } from 'firebase/firestore';
+import { db } from '@/src/lib/firebase';
 
 interface AuditLogItem {
   id: string;
@@ -22,15 +24,60 @@ export default function AdminAuditPage() {
     try {
       setIsLoading(true);
       const token = await getCurrentIdToken();
-      if (!token) return;
 
-      const res = await fetch('/api/admin/audit?limit=60', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setLogs(data.logs || []);
+      const [serverRes, firestoreSnap] = await Promise.allSettled([
+        token
+          ? fetch('/api/admin/audit?limit=60', {
+              headers: { Authorization: `Bearer ${token}` },
+            }).then((r) => (r.ok ? r.json() : null))
+          : Promise.resolve(null),
+        db
+          ? getDocs(
+              query(
+                collection(db, 'audit_logs'),
+                orderBy('timestamp', 'desc'),
+                limit(60)
+              )
+            )
+          : Promise.resolve(null),
+      ]);
+
+      const logMap = new Map<string, AuditLogItem>();
+
+      if (serverRes.status === 'fulfilled' && serverRes.value?.logs) {
+        for (const log of serverRes.value.logs) {
+          logMap.set(log.id, log);
+        }
       }
+
+      if (firestoreSnap.status === 'fulfilled' && firestoreSnap.value) {
+        for (const docSnap of firestoreSnap.value.docs) {
+          const d = docSnap.data();
+          const timestampStr =
+            typeof d.timestamp === 'string'
+              ? d.timestamp
+              : d.timestamp?.toDate
+              ? d.timestamp.toDate().toISOString()
+              : d.timestamp?.seconds
+              ? new Date(d.timestamp.seconds * 1000).toISOString()
+              : new Date().toISOString();
+
+          logMap.set(docSnap.id, {
+            id: docSnap.id,
+            action: d.action || 'UNKNOWN',
+            targetUserId: d.targetUserId,
+            targetEmail: d.targetEmail,
+            adminUid: d.adminUid,
+            adminEmail: d.adminEmail || 'System / CLI',
+            details: d.details || {},
+            timestamp: timestampStr,
+          });
+        }
+      }
+
+      const list = Array.from(logMap.values());
+      list.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+      setLogs(list);
     } catch (err) {
       console.error('Failed to query audit trail:', err);
     } finally {
