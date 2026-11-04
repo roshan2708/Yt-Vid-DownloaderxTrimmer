@@ -96,6 +96,11 @@ export interface AuthenticatedUser {
   picture?: string;
 }
 
+export interface AdminUser extends AuthenticatedUser {
+  role: 'admin' | 'superadmin';
+  isAdmin: boolean;
+}
+
 /**
  * Verifies Firebase ID Token from request
  */
@@ -119,6 +124,61 @@ export async function verifyFirebaseIdToken(token: string): Promise<Authenticate
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : 'Invalid token';
     console.warn('[Cut Tadaao Backend] Token verification failed:', msg);
+    return null;
+  }
+}
+
+/**
+ * Verifies that the provided Firebase ID Token belongs to an authorized Admin / Superadmin
+ */
+export async function verifyAdminToken(token: string): Promise<AdminUser | null> {
+  if (!token) return null;
+
+  const app = getFirebaseAdminApp();
+  if (!app) return null;
+
+  try {
+    const auth = getAuth(app);
+    const decodedToken = await auth.verifyIdToken(token);
+
+    let role: 'admin' | 'superadmin' | null = null;
+    if (decodedToken.admin === true || decodedToken.role === 'admin' || decodedToken.role === 'superadmin') {
+      role = (decodedToken.role as 'admin' | 'superadmin') || 'admin';
+    }
+
+    // Fallback: Check Firestore users doc in case custom claims have not yet refreshed in the JWT
+    if (!role) {
+      const firestore = getFirebaseFirestore();
+      if (firestore) {
+        try {
+          const docSnap = await firestore.collection('users').doc(decodedToken.uid).get();
+          if (docSnap.exists) {
+            const data = docSnap.data();
+            if (data?.role === 'admin' || data?.role === 'superadmin' || data?.isAdmin === true) {
+              role = (data.role as 'admin' | 'superadmin') || 'admin';
+            }
+          }
+        } catch (dbErr) {
+          console.warn('[ClipDown Backend] Firestore role check failed:', dbErr);
+        }
+      }
+    }
+
+    if (!role) {
+      return null;
+    }
+
+    return {
+      uid: decodedToken.uid,
+      email: decodedToken.email,
+      name: decodedToken.name,
+      picture: decodedToken.picture,
+      role,
+      isAdmin: true,
+    };
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : 'Invalid admin token';
+    console.warn('[ClipDown Backend] Admin token verification error:', msg);
     return null;
   }
 }

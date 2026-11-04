@@ -83,6 +83,10 @@ class JobManager {
     return this.jobs.get(id);
   }
 
+  public getAllJobs(): Job[] {
+    return Array.from(this.jobs.values()).sort((a, b) => b.createdAt - a.createdAt);
+  }
+
   public updateJob(id: string, updates: Partial<Job>): Job | undefined {
     const job = this.jobs.get(id);
     if (!job) return undefined;

@@ -2,9 +2,16 @@ import React from 'react';
 
 interface BrandLogoProps {
   className?: string;
+  size?: 'sm' | 'md' | 'lg';
 }
 
-export default function BrandLogo({ className = 'w-8 h-8' }: BrandLogoProps) {
+export default function BrandLogo({ className, size }: BrandLogoProps) {
+  let sizeClass = 'w-8 h-8';
+  if (size === 'sm') sizeClass = 'w-6 h-6';
+  if (size === 'md') sizeClass = 'w-8 h-8';
+  if (size === 'lg') sizeClass = 'w-12 h-12';
+
+  const finalClassName = className || sizeClass;
   return (
     <svg
       width="442"
@@ -12,7 +19,7 @@ export default function BrandLogo({ className = 'w-8 h-8' }: BrandLogoProps) {
       viewBox="0 0 442 442"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
-      className={className}
+      className={finalClassName}
       aria-label="Cut Tadaao Logo"
     >
       <path

@@ -5,6 +5,7 @@ import { Job, VideoMetadata, VideoQuality } from '../types';
 import { formatBytes, formatSeconds, getQualityLabel } from '../utils/validator';
 import { getTempDir, jobManager, TEMP_DIR } from './jobManager';
 import { quotaService } from './quotaService';
+import { analyticsService } from './analyticsService';
 
 // Candidate paths for binaries
 const localBinDir = path.resolve(process.cwd(), 'bin');
@@ -933,6 +934,16 @@ export async function processVideoJob(jobId: string): Promise<void> {
       fileSize: stat.size,
       completedAt: Date.now(),
     });
+
+    analyticsService
+      .recordJobEvent({
+        isSuccess: true,
+        isFullVideo: job.isFullVideo,
+        quality: job.selectedQuality,
+        fileSizeBytes: stat.size,
+        userId: job.userId,
+      })
+      .catch((err) => console.warn('[ClipDown Analytics] Record event failed:', err));
   } catch (err: unknown) {
     const errorMsg = err instanceof Error ? err.message : String(err);
     console.error(`Error processing job ${jobId}:`, errorMsg);
@@ -958,5 +969,14 @@ export async function processVideoJob(jobId: string): Promise<void> {
       error: errorMsg || 'An unexpected error occurred while processing the video.',
       quotaRefunded: job?.quotaConsumed ? true : false,
     });
+
+    analyticsService
+      .recordJobEvent({
+        isSuccess: false,
+        isFullVideo: job?.isFullVideo || false,
+        quality: job?.selectedQuality,
+        userId: job?.userId,
+      })
+      .catch((err) => console.warn('[ClipDown Analytics] Record event failed:', err));
   }
 }
