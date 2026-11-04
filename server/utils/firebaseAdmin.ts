@@ -72,9 +72,24 @@ export function getFirebaseAdminApp(): App | null {
 }
 
 /**
+ * Checks whether server environment variables contain valid Firebase/Google Cloud service credentials
+ */
+export function hasFirebaseCredentials(): boolean {
+  const clientEmail = (process.env.FIREBASE_CLIENT_EMAIL || '').trim();
+  const privateKey = (process.env.FIREBASE_PRIVATE_KEY || '').trim();
+  const adc = (process.env.GOOGLE_APPLICATION_CREDENTIALS || '').trim();
+  return Boolean((clientEmail && privateKey) || adc);
+}
+
+/**
  * Returns the Cloud Firestore instance if credentials exist, or null if in development/fallback mode
  */
 export function getFirebaseFirestore(): Firestore | null {
+  // Guard: Never initialize Firestore client without service credentials
+  if (!hasFirebaseCredentials()) {
+    return null;
+  }
+
   if (firestoreInstance) return firestoreInstance;
 
   const app = getFirebaseAdminApp();

@@ -162,13 +162,22 @@ class AnalyticsService {
     if (firestore) {
       try {
         const snapshots = await Promise.all(
-          dates.map((dateStr) => firestore.collection('analytics_daily').doc(dateStr).get())
+          dates.map((dateStr) =>
+            firestore
+              .collection('analytics_daily')
+              .doc(dateStr)
+              .get()
+              .catch((err) => {
+                console.warn(`[Analytics Service] Failed to read ${dateStr} from Firestore:`, (err as Error).message);
+                return null;
+              })
+          )
         );
 
         for (let i = 0; i < dates.length; i++) {
           const snap = snapshots[i];
           const dateStr = dates[i];
-          if (snap.exists) {
+          if (snap && snap.exists) {
             const data = snap.data() as Partial<DailyAnalyticsRecord>;
             result.push({
               date: dateStr,

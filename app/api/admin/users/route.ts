@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getFirebaseFirestore, verifyAdminToken } from '@/server/utils/firebaseAdmin';
+import { quotaService } from '@/server/services/quotaService';
 import { getFirebaseAdminApp } from '@/server/utils/firebaseAdmin';
 import { getAuth } from 'firebase-admin/auth';
 
@@ -34,10 +35,39 @@ export async function GET(request: NextRequest) {
 
     const firestore = getFirebaseFirestore();
     if (!firestore) {
+      let localUsers = quotaService.getLocalUsers().map((u) => ({
+        userId: u.userId,
+        uid: u.userId,
+        email: u.email || 'No email',
+        displayName: u.displayName || null,
+        photoURL: u.photoURL || null,
+        role: 'user',
+        tier: u.tier || 'free',
+        trimsToday: u.trimsToday || 0,
+        trimsThisMonth: u.trimsThisMonth || 0,
+        dailyLimit: 3,
+        bonusCredits: u.bonusCredits || 0,
+        totalTrimsAllTime: u.totalTrimsAllTime || 0,
+        isBanned: false,
+        banReason: null,
+        createdAt: u.createdAt || null,
+        lastLoginAt: u.lastLoginAt || null,
+      }));
+
+      if (tierFilter !== 'all') {
+        localUsers = localUsers.filter((u) => u.tier === tierFilter);
+      }
+      if (search) {
+        localUsers = localUsers.filter((u) =>
+          u.email.toLowerCase().includes(search) ||
+          (u.displayName && u.displayName.toLowerCase().includes(search)) ||
+          u.userId.toLowerCase().includes(search)
+        );
+      }
+
       return NextResponse.json({
-        users: [],
-        total: 0,
-        warning: 'Firestore is not operational; local storage users are not queryable via admin search.',
+        users: localUsers.slice(0, limit),
+        count: localUsers.length,
       });
     }
 

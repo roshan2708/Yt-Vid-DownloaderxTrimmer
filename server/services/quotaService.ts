@@ -136,6 +136,14 @@ export class QuotaService {
     }
   }
 
+  public getLocalUsersCount(): number {
+    return this.localCache.size;
+  }
+
+  public getLocalUsers(): UserQuotaRecord[] {
+    return Array.from(this.localCache.values());
+  }
+
   public getUtcDateString(): string {
     return new Date().toISOString().slice(0, 10); // "YYYY-MM-DD"
   }

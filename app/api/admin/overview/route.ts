@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getFirebaseFirestore, verifyAdminToken } from '@/server/utils/firebaseAdmin';
 import { analyticsService } from '@/server/services/analyticsService';
+import { quotaService } from '@/server/services/quotaService';
 import { jobManager, RAM_TEMP_DIR, DISK_TEMP_DIR } from '@/server/services/jobManager';
 import fs from 'fs';
 
@@ -64,9 +65,11 @@ export async function GET(request: NextRequest) {
           const snap = await firestore.collection('users').limit(100).get();
           totalUsersCount = snap.size;
         } catch {
-          // ignore
+          totalUsersCount = quotaService.getLocalUsersCount();
         }
       }
+    } else {
+      totalUsersCount = quotaService.getLocalUsersCount();
     }
 
     // Inspect Job Manager State
