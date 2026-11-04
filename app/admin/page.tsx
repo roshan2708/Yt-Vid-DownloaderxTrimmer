@@ -66,25 +66,31 @@ export default function AdminOverviewPage() {
     try {
       setIsLoading(true);
       const token = await getCurrentIdToken();
-      if (!token) return;
 
-      const res = await fetch('/api/admin/overview', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (res.ok) {
-        const json = await res.json();
-        // If server lacks service account and reports 0 users, fetch direct count from Firestore
-        if (json.kpi?.totalUsers === 0 && db) {
-          try {
-            const snap = await getDocs(collection(db, 'users'));
-            if (snap.size > 0) {
-              json.kpi.totalUsers = snap.size;
-            }
-          } catch {
-            // ignore
-          }
+      const [res, firestoreSnap] = await Promise.allSettled([
+        token
+          ? fetch('/api/admin/overview', {
+              headers: { Authorization: `Bearer ${token}` },
+            }).then((r) => (r.ok ? r.json() : null))
+          : Promise.resolve(null),
+        db ? getDocs(collection(db, 'users')) : Promise.resolve(null),
+      ]);
+
+      let overviewJson: OverviewData | null = null;
+      if (res.status === 'fulfilled' && res.value) {
+        overviewJson = res.value;
+      }
+
+      let liveUserCount: number | null = null;
+      if (firestoreSnap.status === 'fulfilled' && firestoreSnap.value) {
+        liveUserCount = firestoreSnap.value.size;
+      }
+
+      if (overviewJson) {
+        if (typeof liveUserCount === 'number') {
+          overviewJson.kpi.totalUsers = liveUserCount;
         }
-        setData(json);
+        setData(overviewJson);
       }
     } catch (err) {
       console.error('Failed to load admin overview:', err);

@@ -57,16 +57,10 @@ export async function GET(request: NextRequest) {
     const firestore = getFirebaseFirestore();
     if (firestore) {
       try {
-        const countSnap = await firestore.collection('users').count().get();
-        totalUsersCount = countSnap.data().count;
+        const snap = await firestore.collection('users').get();
+        totalUsersCount = snap.size;
       } catch {
-        // Fallback: estimate from query
-        try {
-          const snap = await firestore.collection('users').limit(100).get();
-          totalUsersCount = snap.size;
-        } catch {
-          totalUsersCount = quotaService.getLocalUsersCount();
-        }
+        totalUsersCount = quotaService.getLocalUsersCount();
       }
     } else {
       totalUsersCount = quotaService.getLocalUsersCount();
